@@ -3291,10 +3291,8 @@ function tripHoursForYear(year) {
     .reduce((s, t) => s + t.durationSec / 3600, 0);
 }
 function displayedYearHours(year) {
-  const isCurrent = Number(year) === new Date().getFullYear();
-  const base = tripHoursForYear(year) + (isCurrent ? (state.settings.engineHoursOffset || 0) : 0);
   const adj = (state.settings.yearHoursAdjustments || {})[year] || 0;
-  return base + adj;
+  return tripHoursForYear(year) + adj;
 }
 function renderHoursByYear() {
   const container = document.getElementById('hours-by-year-list');
@@ -3311,7 +3309,7 @@ function renderHoursByYear() {
 
   const offset = state.settings.engineHoursOffset || 0;
   let html = `<div class="refuel-row" style="cursor:default;"><div class="rr-left">Ore all'origine</div><div class="rr-amount" style="color:var(--ink-faint);">${offset.toFixed(1)} h</div></div>`;
-  html += `<div class="field-hint" style="margin:-4px 0 10px;">Si modificano in Impostazioni → Motore. Si sommano automaticamente al totale dell'anno corrente (${currentYear}) qui sotto.</div>`;
+  html += `<div class="field-hint" style="margin:-4px 0 10px;">Si modificano in Impostazioni → Motore. Restano separate dagli anni qui sotto, che mostrano solo le ore effettivamente navigate in quell'anno.</div>`;
 
   html += years.map(y => {
     const total = displayedYearHours(y);
@@ -3335,9 +3333,7 @@ async function saveYearHours() {
   if (isNaN(v) || v < 0) { showToast('Inserisci un valore valido'); return; }
 
   if (!state.settings.yearHoursAdjustments) state.settings.yearHoursAdjustments = {};
-  const isCurrent = Number(key) === new Date().getFullYear();
-  const base = tripHoursForYear(key) + (isCurrent ? (state.settings.engineHoursOffset || 0) : 0);
-  state.settings.yearHoursAdjustments[key] = v - base;
+  state.settings.yearHoursAdjustments[key] = v - tripHoursForYear(key);
   await saveSettings();
   closeYearHoursModal();
   showToast('Ore aggiornate');
