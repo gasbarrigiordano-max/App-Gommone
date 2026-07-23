@@ -700,24 +700,32 @@
   .cockpit-play-btn svg{width:20px; height:20px; color:var(--navy-deep);}
 
   body.tracking-active main#view-uscite{
-    display:flex; flex-direction:column; justify-content:flex-start;
-    gap:8px; padding-top:calc(18px + env(safe-area-inset-top)); padding-bottom:130px;
+    display:grid; grid-template-columns:1fr 1fr;
+    grid-template-areas:
+      "fuel time"
+      "gauge gauge"
+      "dist vel"
+      "gps gps";
+    align-content:center; row-gap:8px; column-gap:8px;
+    padding:calc(18px + env(safe-area-inset-top)) 18px 130px;
   }
-  body.tracking-active .speedo-row{
-    flex-direction:column; align-items:stretch; gap:6px; padding:0 18px;
+  body.tracking-active .speedo-row,
+  body.tracking-active .trip-stats{
+    display:contents;
   }
   body.tracking-active .speedo-side{
-    order:1; width:100%;
+    width:100%;
     display:flex; align-items:baseline; justify-content:space-between;
     background:var(--navy-panel); border:1px solid var(--navy-line);
     border-radius:var(--radius); padding:8px 20px;
   }
-  body.tracking-active .speedo-side:last-of-type{order:2;}
+  body.tracking-active .speedo-side:first-of-type{grid-area:dist;}
+  body.tracking-active .speedo-side:last-of-type{grid-area:fuel;}
   body.tracking-active .speedo-side-label{font-size:14px; letter-spacing:0.1em;}
   body.tracking-active .speedo-side-value{font-size:34px; margin-top:0;}
   body.tracking-active .speedo-side-value span{font-size:15px;}
   body.tracking-active .gauge-wrap{
-    order:3; flex-basis:100%; width:100%; max-width:none;
+    grid-area:gauge; width:100%; max-width:none;
     height:auto; margin:0;
   }
   body.tracking-active .speedo-svg{width:100%; height:auto; aspect-ratio:216/130; display:block;}
@@ -736,9 +744,10 @@
   body.tracking-active .play-btn:active{transform:translateX(-50%) scale(0.98);}
   body.tracking-active .play-btn svg{width:26px; height:26px;}
 
-  body.tracking-active .gps-status{font-size:14px; margin:0 18px; min-height:0;}
-  body.tracking-active .trip-stats{padding:0 18px; margin-top:0;}
-  body.tracking-active .trip-stats .stat-card{padding:12px 8px;}
+  body.tracking-active .gps-status{grid-area:gps; font-size:14px; margin:0; min-height:0;}
+  body.tracking-active .trip-stats .stat-card{padding:12px 8px; text-align:center;}
+  body.tracking-active .trip-stats .stat-card:first-child{grid-area:time;}
+  body.tracking-active .trip-stats .stat-card:last-child{grid-area:vel;}
   body.tracking-active .trip-stats .k{font-size:11px;}
   body.tracking-active .trip-stats .v{font-size:22px;}
 
