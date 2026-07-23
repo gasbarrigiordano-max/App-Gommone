@@ -715,14 +715,14 @@
   }
   body.tracking-active .speedo-side{
     width:100%;
-    display:flex; align-items:baseline; justify-content:space-between;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;
     background:var(--navy-panel); border:1px solid var(--navy-line);
-    border-radius:var(--radius); padding:8px 20px;
+    border-radius:var(--radius); padding:12px 8px;
   }
   body.tracking-active .speedo-side:first-of-type{grid-area:dist;}
   body.tracking-active .speedo-side:last-of-type{grid-area:fuel;}
-  body.tracking-active .speedo-side-label{font-size:14px; letter-spacing:0.1em;}
-  body.tracking-active .speedo-side-value{font-size:34px; margin-top:0;}
+  body.tracking-active .speedo-side-label{font-size:11px; letter-spacing:0.1em;}
+  body.tracking-active .speedo-side-value{font-size:34px; margin-top:4px;}
   body.tracking-active .speedo-side-value span{font-size:15px;}
   body.tracking-active .gauge-wrap{
     grid-area:gauge; width:100%; max-width:none;
