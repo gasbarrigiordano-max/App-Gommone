@@ -3158,7 +3158,7 @@ function vaRenderDeadlines() {
   const now = new Date();
   const items = [];
   const ins = vaCurrentInsurance();
-  if (ins && ins.scadenza) items.push({ label: 'Assicurazione' + (ins.compagnia ? ' · ' + ins.compagnia : ''), date: new Date(ins.scadenza + 'T00:00:00'), threshold: 60 });
+  if (ins && ins.scadenza) items.push({ label: 'Assicurazione' + (ins.compagnia ? ' · ' + escapeHtml(ins.compagnia) : ''), date: new Date(ins.scadenza + 'T00:00:00'), threshold: 60 });
   const bollo = vaCurrentBollo();
   if (bollo && bollo.scadenza) items.push({ label: 'Bollo', date: new Date(bollo.scadenza + 'T00:00:00'), threshold: 60 });
   const rev = vaCurrentRevisione();
@@ -3768,7 +3768,7 @@ function vaRenderRifornimenti() {
 
   const totalKm = inScope.reduce((s, r) => s + (r.km || 0), 0);
   const totalSpeso = inScope.reduce((s, r) => s + r.euro, 0);
-  const totalLitri = inScope.reduce((s, r) => s + (r.euro / r.pricePerLitro || 0), 0);
+  const totalLitri = inScope.reduce((s, r) => s + (r.pricePerLitro > 0 ? r.euro / r.pricePerLitro : 0), 0);
   document.getElementById('va-ref-summary-km').textContent = totalKm ? totalKm.toLocaleString('it-IT') + ' km' : '—';
   document.getElementById('va-ref-summary-total').textContent = fmtEUR(totalSpeso);
   document.getElementById('va-ref-summary-liters').textContent = totalLitri > 0 ? totalLitri.toFixed(1) + ' L' : '—';
@@ -4081,10 +4081,10 @@ function vaBuildImportEntries() {
     if (total == null && price != null && liters) total = price * liters;
     if (price == null && total != null && liters) price = total / liters;
 
-    if (!date || price == null || total == null) {
+    if (!date || price == null || price <= 0 || total == null) {
       const reasons = [];
       if (!date) reasons.push(map.date >= 0 ? `data non riconosciuta ("${row[map.date] ?? ''}")` : 'nessuna colonna data selezionata');
-      if (price == null) reasons.push('prezzo al litro mancante o non ricavabile');
+      if (price == null || price <= 0) reasons.push('prezzo al litro mancante, zero o non ricavabile');
       if (total == null) reasons.push('totale speso mancante o non ricavabile');
       skippedRows.push({ raw: row, reasons });
       return;
@@ -4590,6 +4590,7 @@ async function loadAll() {
         Object.keys(loaded.standard).forEach(key => {
           loaded.standard[key] = migrateStandardPart(loaded.standard[key]);
         });
+        fillMissingStandardParts(loaded.standard);
         state.engineParts = loaded;
       }
       // formato non riconoscibile: mantiene i default appena definiti
@@ -4625,6 +4626,23 @@ async function loadAll() {
   if (categoryFixed) await saveExpenses();
 }
 
+const DEFAULT_STANDARD_PART_LABELS = {
+  filtro_separatore: 'Filtro separatore acqua',
+  filtro_carburante: 'Filtro carburante',
+  candele: 'Candele',
+  girante: 'Girante',
+  olio_piede: 'Olio piede',
+  anodo_trim: 'Anodo trim',
+  anodo_piede: 'Anodo piede',
+};
+function fillMissingStandardParts(standard) {
+  Object.keys(DEFAULT_STANDARD_PART_LABELS).forEach(key => {
+    if (!standard[key]) {
+      standard[key] = { label: DEFAULT_STANDARD_PART_LABELS[key], productCode: '', oemCode: '', torqueNm: null, history: [] };
+    }
+  });
+  return standard;
+}
 function migrateStandardPart(p) {
   if (p.history && Array.isArray(p.history)) return p; // già nel formato corrente
   const history = [];
@@ -4830,12 +4848,12 @@ function renderDeadlines() {
 
   const ins = currentInsurance();
   if (ins && ins.scadenza) {
-    items.push({ label: 'Assicurazione' + (ins.compagnia ? ' · ' + ins.compagnia : ''), date: new Date(ins.scadenza + 'T00:00:00'), threshold: 60 });
+    items.push({ label: 'Assicurazione' + (ins.compagnia ? ' · ' + escapeHtml(ins.compagnia) : ''), date: new Date(ins.scadenza + 'T00:00:00'), threshold: 60 });
   }
   if (state.settings.hasCarrello !== false) {
     const crlIns = currentCarrelloIns();
     if (crlIns && crlIns.scadenza) {
-      items.push({ label: 'Assicurazione carrello' + (crlIns.compagnia ? ' · ' + crlIns.compagnia : ''), date: new Date(crlIns.scadenza + 'T00:00:00'), threshold: 60 });
+      items.push({ label: 'Assicurazione carrello' + (crlIns.compagnia ? ' · ' + escapeHtml(crlIns.compagnia) : ''), date: new Date(crlIns.scadenza + 'T00:00:00'), threshold: 60 });
     }
     const crlRev = currentCarrelloRev();
     if (crlRev && crlRev.scadenza) {
@@ -6928,6 +6946,7 @@ function setSpeseFilter(id) {
 
 /* ---------------- Modale spesa ---------------- */
 function openExpenseModal(id) {
+  expExpenseFieldOrder = [];
   const overlay = document.getElementById('expense-modal-overlay');
   const grid = document.getElementById('cat-grid');
   grid.innerHTML = CATEGORIES.map(c =>
@@ -6956,7 +6975,6 @@ function openExpenseModal(id) {
     document.getElementById('exp-excluded').checked = false;
     document.getElementById('exp-fuel-liters').value = '';
     document.getElementById('exp-fuel-price').value = '';
-    expExpenseFieldOrder = [];
     selectCategory(state.activeFilter !== 'tutte' ? state.activeFilter : 'carburante');
     document.getElementById('exp-delete-btn').style.display = 'none';
   }
@@ -7412,7 +7430,12 @@ function openTripEditModal(id) {
   document.getElementById('te-max').value = t.maxSpeedKn.toFixed(1);
   document.getElementById('te-fuel').value = t.fuelLiters.toFixed(1);
   document.getElementById('te-note').value = t.note || '';
-  updateTripEditCost();
+  if (t.estimatedCost != null) {
+    document.getElementById('te-cost').value = t.estimatedCost.toFixed(2);
+    document.getElementById('te-cost-hint').textContent = 'Costo registrato per questa uscita — modifica il carburante per ricalcolarlo al prezzo attuale.';
+  } else {
+    updateTripEditCost();
+  }
   document.getElementById('trip-edit-modal-overlay').classList.add('show');
   renderTripRouteMap(t);
 }
@@ -7613,7 +7636,12 @@ function renderStatistiche() {
   const now = new Date();
   let rangeStart, rangeEnd;
   if (state.statsYear === 'all') {
-    rangeStart = state.expenses.length ? new Date(Math.min(...state.expenses.map(e => new Date(e.date)))) : now;
+    if (state.expenses.length) {
+      const earliest = new Date(Math.min(...state.expenses.map(e => new Date(e.date))));
+      rangeStart = new Date(earliest.getFullYear(), earliest.getMonth(), 1);
+    } else {
+      rangeStart = now;
+    }
     rangeEnd = now;
   } else {
     rangeStart = new Date(state.statsYear, 0, 1);
@@ -7840,6 +7868,7 @@ function handleImportFile(event) {
           Object.keys(data.engineParts.standard).forEach(key => {
             data.engineParts.standard[key] = migrateStandardPart(data.engineParts.standard[key]);
           });
+          fillMissingStandardParts(data.engineParts.standard);
           state.engineParts = data.engineParts;
         }
         await Promise.all([
