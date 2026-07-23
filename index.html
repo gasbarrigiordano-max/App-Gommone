@@ -28,7 +28,7 @@
     --radius-lg:20px;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  html,body{margin:0;padding:0;}
+  html,body{margin:0;padding:0; overflow-x:hidden;}
   body{
     background:radial-gradient(ellipse at top, #0D2B42 0%, var(--navy-deep) 60%);
     color:var(--ink);
@@ -370,11 +370,14 @@
     text-transform:uppercase; color:var(--ink-dim); margin-bottom:7px;
   }
   .field input, .field select{
-    width:100%; background:var(--navy-panel); border:1px solid var(--navy-line);
+    width:100%; min-width:0; max-width:100%; background:var(--navy-panel); border:1px solid var(--navy-line);
     border-radius:10px; padding:12px 13px; color:var(--paper);
     font-family:'IBM Plex Mono',monospace; font-size:14.5px;
   }
   .field input:focus, .field select:focus{outline:none; border-color:var(--brass);}
+  .field input[type="date"]{
+    -webkit-min-logical-width:0; /* iOS Safari: senza questo il controllo nativo ignora width:100% e sfonda il contenitore */
+  }
   .field-hint{font-size:11px; color:var(--ink-faint); margin-top:6px; line-height:1.4;}
   .btn{
     width:100%; padding:13px; border-radius:10px; border:none; cursor:pointer;
