@@ -102,9 +102,9 @@
   .settings-btn svg{width:21px;height:21px;}
 
   /* ===== Main views ===== */
-  main{flex:1; padding:14px 18px 100px; overflow-y:auto;}
+  main{flex:1; padding:14px 18px 100px; overflow-y:auto; overflow-x:hidden;}
   main[hidden]{display:none;}
-  #va-import-view{flex-direction:column; overflow-y:auto;}
+  #va-import-view{flex-direction:column; overflow-y:auto; overflow-x:hidden;}
   #va-import-view:not([hidden]){display:flex; flex:1; min-height:0;}
 
   .section-label{
@@ -375,7 +375,8 @@
     font-family:'IBM Plex Mono',monospace; font-size:14.5px;
   }
   .field input:focus, .field select:focus{outline:none; border-color:var(--brass);}
-  .field input[type="date"]{
+  .field input[type="date"], .field input[type="time"]{
+    -webkit-appearance:none; appearance:none;
     -webkit-min-logical-width:0; /* iOS Safari: senza questo il controllo nativo ignora width:100% e sfonda il contenitore */
   }
   .field-hint{font-size:11px; color:var(--ink-faint); margin-top:6px; line-height:1.4;}
@@ -426,7 +427,7 @@
     border-top:1px solid var(--navy-line);
     border-radius:20px 20px 0 0;
     padding:22px 20px calc(24px + env(safe-area-inset-bottom));
-    max-height:88vh; overflow-y:auto;
+    max-height:88vh; overflow-y:auto; overflow-x:hidden;
     animation:slideup .22s ease-out;
   }
   @keyframes slideup{from{transform:translateY(30px); opacity:0;} to{transform:translateY(0); opacity:1;}}
@@ -852,7 +853,7 @@
       Indietro
     </button>
   </div>
-  <div style="padding:12px 20px 40px; overflow-y:auto;">
+  <div style="padding:12px 20px 40px; overflow-y:auto; overflow-x:hidden;">
     <div class="section-label" style="margin-top:6px;">Impostazioni</div>
     <div class="section-label" style="margin-top:18px;">I miei veicoli</div>
     <div class="field-hint" style="margin-bottom:12px;">Disattiva quelli che non possiedi: spariscono dalla schermata di scelta. Puoi riattivarli quando vuoi, senza perdere i dati già registrati.</div>
@@ -1164,7 +1165,7 @@
 </div>
 
 <!-- ============ SCHERMATA PROPOSTA: Auto / Scooter (in progettazione) ============ -->
-<div id="vehicle-proposal-screen" style="display:none; position:fixed; top:0; bottom:0; left:50%; transform:translateX(-50%); width:100%; max-width:460px; z-index:2900; background:var(--navy-deep); flex-direction:column; overflow-y:auto; box-sizing:border-box;">
+<div id="vehicle-proposal-screen" style="display:none; position:fixed; top:0; bottom:0; left:50%; transform:translateX(-50%); width:100%; max-width:460px; z-index:2900; background:var(--navy-deep); flex-direction:column; overflow-y:auto; overflow-x:hidden; box-sizing:border-box;">
   <div style="padding:18px 20px 0;">
     <button class="back-link" onclick="showLauncher()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
