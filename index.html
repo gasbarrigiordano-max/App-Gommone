@@ -5270,13 +5270,14 @@ async function saveRefuel() {
     state.fuel.levelLiters = clampFuelLevel(state.fuel.levelLiters - old.liters);
     Object.assign(old, { liters, pricePerLitro: price, euro: total, date, note, excluded });
     const linkedExpense = state.expenses.find(x => x.id === old.expenseId);
-    if (linkedExpense) Object.assign(linkedExpense, { amount: total, date, note: note || `Rifornimento ${liters.toFixed(1)} L`, excluded });
+    if (linkedExpense) Object.assign(linkedExpense, { amount: total, date, note: note || `Rifornimento ${liters.toFixed(1)} L`, excluded, fuelLiters: liters, fuelPricePerLitro: price });
     state.fuel.levelLiters = clampFuelLevel(state.fuel.levelLiters + liters);
   } else {
     const expenseId = uid();
     state.expenses.push({
       id: expenseId, category: 'carburante', amount: total, date,
       note: note || `Rifornimento ${liters.toFixed(1)} L`, excluded,
+      fuelLiters: liters, fuelPricePerLitro: price,
     });
     state.refuels.push({ id: uid(), date, liters, pricePerLitro: price, euro: total, note, excluded, expenseId });
     state.fuel.levelLiters = clampFuelLevel(state.fuel.levelLiters + liters);
