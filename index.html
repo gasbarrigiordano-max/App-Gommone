@@ -226,6 +226,11 @@
     font-family:'Oswald',sans-serif; font-size:11px; letter-spacing:0.1em;
     text-transform:uppercase; color:var(--ink-faint);
     margin:18px 0 6px; padding-left:2px;
+    display:flex; align-items:baseline; justify-content:space-between; gap:8px; padding-right:2px;
+  }
+  .month-group-total{
+    font-family:'IBM Plex Mono',monospace; letter-spacing:0; text-transform:none;
+    color:var(--ink-dim); font-size:11.5px;
   }
 
   /* ===== FAB ===== */
@@ -3157,7 +3162,7 @@ function vaRenderDashboard() {
       return `<div class="activity-item">
         <div class="cat-badge">${cat.icon}</div>
         <div class="activity-info"><div class="activity-title">${cat.label}${it.note ? ' · ' + escapeHtml(it.note) : ''}</div><div class="activity-sub">${fmtDate(it.date)}</div></div>
-        <div class="activity-amount">-${fmtEUR(it.amount)}</div>
+        <div class="activity-amount">${fmtExpenseAmount(it.amount, it.excluded)}</div>
       </div>`;
     }
     return `<div class="activity-item">
@@ -3238,7 +3243,7 @@ function vaRenderSpese() {
       return `<div class="activity-item" style="cursor:pointer" onclick="vaOpenExpenseModal('${e.id}')">
         <div class="cat-badge">${cat.icon}</div>
         <div class="activity-info"><div class="activity-title">${cat.label}${e.note ? ' · ' + escapeHtml(e.note) : ''}</div><div class="activity-sub">${fmtDate(e.date)}</div></div>
-        <div class="activity-amount">-${fmtEUR(e.amount)}</div>
+        <div class="activity-amount">${fmtExpenseAmount(e.amount, e.excluded)}</div>
       </div>`;
     }).join('')}
   `).join('');
@@ -4738,6 +4743,9 @@ function uid() { return Date.now().toString(36) + Math.random().toString(36).sli
 function fmtEUR(n) {
   return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(n || 0);
 }
+function fmtExpenseAmount(amount, excluded) {
+  return excluded ? `(-${fmtEUR(amount)})` : `-${fmtEUR(amount)}`;
+}
 function fmtDate(iso) {
   const d = new Date(iso + 'T00:00:00');
   return d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -4968,7 +4976,7 @@ function renderDashboard() {
           <div class="activity-title">${cat.label}${it.note ? ' · ' + escapeHtml(it.note) : ''}</div>
           <div class="activity-sub">${fmtDate(it.date)}</div>
         </div>
-        <div class="activity-amount">-${fmtEUR(it.amount)}</div>
+        <div class="activity-amount">${fmtExpenseAmount(it.amount, it.excluded)}</div>
       </div>`;
     } else {
       const fuelPart = it.fuelLiters ? ` · ${it.fuelLiters.toFixed(1)} L` : '';
@@ -6936,7 +6944,10 @@ function renderSpese() {
   Object.keys(groups).sort().reverse().forEach(key => {
     const d = new Date(key + '-01T00:00:00');
     const label = d.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
-    html += `<div class="month-group-label">${label}</div>`;
+    const monthTotal = state.activeFilter === 'carburante'
+      ? `<span class="month-group-total">${fmtEUR(groups[key].filter(e => !e.excluded).reduce((s, e) => s + e.amount, 0))}</span>`
+      : '';
+    html += `<div class="month-group-label"><span>${label}</span>${monthTotal}</div>`;
     groups[key].forEach(e => {
       const cat = CAT_MAP[e.category] || CAT_MAP.altro;
       html += `<div class="activity-item" style="cursor:pointer" onclick="openExpenseModal('${e.id}')">
@@ -6945,7 +6956,7 @@ function renderSpese() {
           <div class="activity-title">${cat.label}${e.note ? ' · ' + escapeHtml(e.note) : ''}</div>
           <div class="activity-sub">${fmtDateShort(e.date)}</div>
         </div>
-        <div class="activity-amount">-${fmtEUR(e.amount)}</div>
+        <div class="activity-amount">${fmtExpenseAmount(e.amount, e.excluded)}</div>
       </div>`;
     });
   });
