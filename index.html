@@ -4616,32 +4616,43 @@ async function loadAll() {
   } catch (e) { /* keep seeded defaults */ }
 
   // Corregge eventuali spese assicurazione salvate come "manutenzione" prima del fix di categorizzazione
-  let categoryFixed = false;
+  let expensesMigrated = false;
   state.insurances.forEach(ins => {
     if (ins.expenseId) {
       const exp = state.expenses.find(x => x.id === ins.expenseId);
-      if (exp && exp.category !== 'assicurazione') { exp.category = 'assicurazione'; categoryFixed = true; }
+      if (exp && exp.category !== 'assicurazione') { exp.category = 'assicurazione'; expensesMigrated = true; }
     }
   });
   state.carrelloLavori.forEach(l => {
     if (l.expenseId) {
       const exp = state.expenses.find(x => x.id === l.expenseId);
-      if (exp && exp.category !== 'spese_carrello') { exp.category = 'spese_carrello'; categoryFixed = true; }
+      if (exp && exp.category !== 'spese_carrello') { exp.category = 'spese_carrello'; expensesMigrated = true; }
     }
   });
   state.carrelloBollo.forEach(b => {
     if (b.expenseId) {
       const exp = state.expenses.find(x => x.id === b.expenseId);
-      if (exp && exp.category !== 'bollo') { exp.category = 'bollo'; categoryFixed = true; }
+      if (exp && exp.category !== 'bollo') { exp.category = 'bollo'; expensesMigrated = true; }
     }
   });
   state.carrelloRevisioni.forEach(r => {
     if (r.expenseId) {
       const exp = state.expenses.find(x => x.id === r.expenseId);
-      if (exp && exp.category !== 'revisione') { exp.category = 'revisione'; categoryFixed = true; }
+      if (exp && exp.category !== 'revisione') { exp.category = 'revisione'; expensesMigrated = true; }
     }
   });
-  if (categoryFixed) await saveExpenses();
+  // Backfilla litri/prezzo al litro sulle spese carburante dei rifornimenti registrati prima che venissero salvati anche lì
+  state.refuels.forEach(r => {
+    if (r.expenseId && r.liters > 0) {
+      const exp = state.expenses.find(x => x.id === r.expenseId);
+      if (exp && exp.fuelLiters == null) {
+        exp.fuelLiters = r.liters;
+        exp.fuelPricePerLitro = r.euro / r.liters;
+        expensesMigrated = true;
+      }
+    }
+  });
+  if (expensesMigrated) await saveExpenses();
 }
 
 const DEFAULT_STANDARD_PART_LABELS = {
