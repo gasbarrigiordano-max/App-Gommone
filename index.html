@@ -3817,7 +3817,7 @@ function vaOnRefuelFieldInput(field) {
   if (computeField === 'total' && liters > 0 && price > 0) {
     document.getElementById('va-ref-total').value = (liters * price).toFixed(2);
   } else if (computeField === 'price' && liters > 0 && total > 0) {
-    document.getElementById('va-ref-price').value = (total / liters).toFixed(3);
+    document.getElementById('va-ref-price').value = roundFuelPriceUp(total / liters).toFixed(3);
   } else if (computeField === 'liters' && price > 0 && total > 0) {
     document.getElementById('va-ref-liters').value = (total / price).toFixed(1);
   }
@@ -3864,7 +3864,7 @@ async function vaSaveRefuel() {
   const excluded = document.getElementById('va-ref-excluded').checked;
 
   if ((!euro || euro <= 0) && pricePerLitro > 0 && liters > 0) euro = pricePerLitro * liters;
-  if ((!pricePerLitro || pricePerLitro <= 0) && euro > 0 && liters > 0) pricePerLitro = euro / liters;
+  if ((!pricePerLitro || pricePerLitro <= 0) && euro > 0 && liters > 0) pricePerLitro = roundFuelPriceUp(euro / liters);
 
   if (!date) { showToast('Inserisci una data'); return; }
   if (!pricePerLitro || pricePerLitro <= 0) { showToast('Inserisci il prezzo al litro'); return; }
@@ -4097,7 +4097,7 @@ function vaBuildImportEntries() {
     const fuelType = map.fuelType >= 0 ? (row[map.fuelType] ?? '').toString().trim() : '';
 
     if (total == null && price != null && liters) total = price * liters;
-    if (price == null && total != null && liters) price = total / liters;
+    if (price == null && total != null && liters) price = roundFuelPriceUp(total / liters);
 
     if (!date || price == null || price <= 0 || total == null) {
       const reasons = [];
@@ -4647,7 +4647,7 @@ async function loadAll() {
       const exp = state.expenses.find(x => x.id === r.expenseId);
       if (exp && exp.fuelLiters == null) {
         exp.fuelLiters = r.liters;
-        exp.fuelPricePerLitro = r.euro / r.liters;
+        exp.fuelPricePerLitro = roundFuelPriceUp(r.euro / r.liters);
         expensesMigrated = true;
       }
     }
@@ -4753,6 +4753,9 @@ function uid() { return Date.now().toString(36) + Math.random().toString(36).sli
 
 function fmtEUR(n) {
   return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(n || 0);
+}
+function roundFuelPriceUp(price) {
+  return Math.ceil(price * 1000) / 1000;
 }
 function fmtExpenseAmount(amount, excluded) {
   return excluded ? `(-${fmtEUR(amount)})` : `-${fmtEUR(amount)}`;
@@ -5250,7 +5253,7 @@ function onRefuelFieldInput(field) {
   if (computeField === 'total' && liters > 0 && price > 0) {
     document.getElementById('ref-total').value = (liters * price).toFixed(2);
   } else if (computeField === 'price' && liters > 0 && total > 0) {
-    document.getElementById('ref-price').value = (total / liters).toFixed(3);
+    document.getElementById('ref-price').value = roundFuelPriceUp(total / liters).toFixed(3);
   } else if (computeField === 'liters' && price > 0 && total > 0) {
     document.getElementById('ref-liters').value = (total / price).toFixed(1);
   }
@@ -5267,7 +5270,7 @@ async function saveRefuel() {
 
   // resolve any missing value defensively
   if ((!total || total <= 0) && liters > 0 && price > 0) total = liters * price;
-  if ((!price || price <= 0) && liters > 0 && total > 0) price = total / liters;
+  if ((!price || price <= 0) && liters > 0 && total > 0) price = roundFuelPriceUp(total / liters);
   if ((!liters || liters <= 0) && price > 0 && total > 0) liters = total / price;
 
   if (!liters || liters <= 0) { showToast('Inserisci almeno i litri riforniti'); return; }
@@ -7042,7 +7045,7 @@ function onExpFuelFieldInput(field) {
   if (computeField === 'total' && liters > 0 && price > 0) {
     document.getElementById('exp-amount').value = (liters * price).toFixed(2);
   } else if (computeField === 'price' && liters > 0 && total > 0) {
-    document.getElementById('exp-fuel-price').value = (total / liters).toFixed(3);
+    document.getElementById('exp-fuel-price').value = roundFuelPriceUp(total / liters).toFixed(3);
   } else if (computeField === 'liters' && price > 0 && total > 0) {
     document.getElementById('exp-fuel-liters').value = (total / price).toFixed(1);
   }
