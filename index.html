@@ -4641,14 +4641,18 @@ async function loadAll() {
       if (exp && exp.category !== 'revisione') { exp.category = 'revisione'; expensesMigrated = true; }
     }
   });
-  // Backfilla litri/prezzo al litro sulle spese carburante dei rifornimenti registrati prima che venissero salvati anche lì
+  // Backfilla/corregge litri e prezzo al litro sulle spese carburante dei rifornimenti:
+  // sia quelle mai valorizzate, sia quelle già backfillate prima di introdurre l'arrotondamento per eccesso.
   state.refuels.forEach(r => {
     if (r.expenseId && r.liters > 0) {
       const exp = state.expenses.find(x => x.id === r.expenseId);
-      if (exp && exp.fuelLiters == null) {
-        exp.fuelLiters = r.liters;
-        exp.fuelPricePerLitro = roundFuelPriceUp(r.euro / r.liters);
-        expensesMigrated = true;
+      if (exp) {
+        const roundedPrice = roundFuelPriceUp(r.euro / r.liters);
+        if (exp.fuelLiters == null || exp.fuelPricePerLitro !== roundedPrice) {
+          exp.fuelLiters = r.liters;
+          exp.fuelPricePerLitro = roundedPrice;
+          expensesMigrated = true;
+        }
       }
     }
   });
