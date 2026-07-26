@@ -802,6 +802,77 @@
     font-family:'Inter',sans-serif;
   }
   .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  /* ===== Desktop layout (Mac/Safari e finestre larghe) =====
+     Si attiva da solo in base alla larghezza della finestra: sidebar al posto
+     della tabbar in basso, modali centrate invece di schede dal basso,
+     contenuto più arioso. Il markup e la logica restano identici al mobile. */
+  @media (min-width:900px){
+    body{align-items:center; min-height:100vh; padding:24px 0;}
+    .phone{
+      max-width:1100px; display:grid;
+      height:calc(100vh - 48px); min-height:0;
+      border-radius:20px; box-shadow:0 20px 80px rgba(0,0,0,0.55);
+      grid-template-columns:230px 1fr;
+      grid-template-rows:auto auto 1fr;
+      grid-template-areas:
+        "topbar topbar"
+        "masthead masthead"
+        "sidebar main";
+    }
+    /* Le altre "schermate" (vehicle-app, launcher, impostazioni launcher, proposta veicolo) sono
+       position:fixed con top/bottom/max-width inline scritti nell'HTML, e JS le mostra/nasconde
+       scrivendo style.display direttamente (none/flex): serve !important per vincere quell'inline
+       su max-width/top/bottom. Su #vehicle-app il display:grid va applicato SOLO quando JS l'ha
+       resa visibile (style="...display: flex..."), altrimenti la forzeremmo visibile anche da
+       nascosta: il selettore d'attributo intercetta solo quello stato. */
+    #vehicle-app, #vehicle-proposal-screen, #launcher-screen, #launcher-settings-screen{
+      max-width:1100px !important; top:24px !important; bottom:24px !important;
+      border-radius:20px; box-shadow:0 20px 80px rgba(0,0,0,0.55);
+    }
+    #vehicle-app[style*="display: flex"],
+    #vehicle-app[style*="display:flex"]{
+      display:grid !important;
+      grid-template-columns:230px 1fr;
+      grid-template-rows:auto auto 1fr;
+      grid-template-areas:
+        "topbar topbar"
+        "masthead masthead"
+        "sidebar main";
+    }
+    .va-backlink-row{grid-area:topbar; padding:16px 24px 0;}
+    .masthead{grid-area:masthead; padding:18px 28px 16px;}
+    .tabbar{
+      grid-area:sidebar; position:static; left:auto; bottom:auto; transform:none;
+      width:auto; max-width:none;
+      background:transparent; backdrop-filter:none;
+      border-top:none; border-right:1px solid var(--navy-line);
+      flex-direction:column; align-items:stretch; gap:3px;
+      padding:18px 12px; overflow-y:auto;
+    }
+    .tab-btn{
+      flex-direction:row; justify-content:flex-start; align-items:center;
+      gap:12px; padding:10px 14px; border-radius:10px; min-width:0;
+      transition:background .15s;
+    }
+    .tab-btn:hover{background:var(--navy-panel);}
+    .tab-btn.active{background:var(--navy-panel-2);}
+    .tab-btn svg{width:19px; height:19px;}
+    .tab-btn span{font-size:11.5px; letter-spacing:0.03em;}
+    main{
+      grid-area:main; max-width:820px; width:100%; margin:0 auto;
+      padding:26px 32px 40px;
+    }
+    .fab{
+      position:absolute; right:32px; bottom:32px;
+    }
+    .modal-overlay{align-items:center;}
+    .modal{
+      border-radius:20px; border-top:none; border:1px solid var(--navy-line);
+      max-height:82vh;
+    }
+    .modal-handle{display:none;}
+  }
 </style>
 </head>
 <body>
@@ -886,7 +957,7 @@
 
 <!-- ============ APP VEICOLO (Auto / Scooter, struttura condivisa) ============ -->
 <div id="vehicle-app" style="display:none; position:fixed; top:0; bottom:0; left:50%; transform:translateX(-50%); width:100%; max-width:460px; z-index:2500; background:var(--navy-deep); flex-direction:column; box-shadow:0 0 60px rgba(0,0,0,0.5);">
-  <div style="padding:14px 18px 0;">
+  <div class="va-backlink-row" style="padding:14px 18px 0;">
     <button class="back-link" onclick="showLauncher()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
       Cambia veicolo
