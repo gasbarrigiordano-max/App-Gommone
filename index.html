@@ -3221,8 +3221,11 @@ function vaRenderDashboard() {
     document.getElementById('va-dash-ins-scadenza').textContent = '—';
   }
 
+  // Ogni rifornimento ha già una spesa "Carburante" collegata (expenseId): la escludiamo qui
+  // per non farla comparire due volte, dato che il rifornimento stesso è già in elenco sotto.
+  const refuelExpenseIds = new Set(vState.refuels.map(r => r.expenseId).filter(Boolean));
   const items = [
-    ...vState.expenses.map(e => ({ type: 'expense', ...e })),
+    ...vState.expenses.filter(e => !refuelExpenseIds.has(e.id)).map(e => ({ type: 'expense', ...e })),
     ...vState.refuels.map(r => ({ type: 'refuel', ...r })),
   ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 6);
   const container = document.getElementById('va-dash-activity');
