@@ -3127,6 +3127,19 @@ async function vaLoadAll() {
     }
   });
   if (vaCategoryFixed) await vaSave('expenses', vState.expenses);
+
+  // Rimuove il suffisso "(importato)" lasciato nelle note dei rifornimenti importati da vecchie
+  // versioni dell'import Excel/CSV: non viene più aggiunto, ma restava nei dati già salvati.
+  const importedSuffixRe = /\s*\(importato\)\s*$/i;
+  let vaNotesCleaned = false;
+  vState.expenses.forEach(e => {
+    if (e.note && importedSuffixRe.test(e.note)) { e.note = e.note.replace(importedSuffixRe, '').trim(); vaNotesCleaned = true; }
+  });
+  vState.refuels.forEach(r => {
+    if (r.note && importedSuffixRe.test(r.note)) { r.note = r.note.replace(importedSuffixRe, '').trim(); vaNotesCleaned = true; }
+    if (r.station && importedSuffixRe.test(r.station)) { r.station = r.station.replace(importedSuffixRe, '').trim(); vaNotesCleaned = true; }
+  });
+  if (vaNotesCleaned) await Promise.all([vaSave('expenses', vState.expenses), vaSave('refuels', vState.refuels)]);
 }
 async function vaSave(key, data) {
   try { await storageSet(currentVehicle.prefix + key, JSON.stringify(data)); }
