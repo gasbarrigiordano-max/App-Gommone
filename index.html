@@ -2281,6 +2281,11 @@
       <input type="text" id="tm-fuel" readonly>
     </div>
     <div class="field">
+      <label>Carburante a bordo ora (opzionale)</label>
+      <input type="number" id="tm-fuel-onboard" inputmode="decimal" placeholder="es. 120">
+      <div class="field-hint">Se lo indichi, aggiorna il serbatoio stimato in Plancia e ricalcola il consumo medio del motore in base a questa uscita.</div>
+    </div>
+    <div class="field">
       <label>Costo stimato uscita</label>
       <input type="text" id="tm-cost" readonly>
       <div class="field-hint" id="tm-cost-hint"></div>
@@ -7435,6 +7440,7 @@ function stopTrip() {
   tracking.lastResult.estimatedCost = costInfo.cost;
   tracking.lastResult.fuelPriceUsed = costInfo.priceUsed;
   document.getElementById('tm-note').value = '';
+  document.getElementById('tm-fuel-onboard').value = '';
 
   document.getElementById('trip-modal-overlay').classList.add('show');
   renderRouteMap('tm-route-map', 'tm-route-section', downsampleRoute(tracking.points, 150));
@@ -7488,6 +7494,7 @@ function submitManualTrip() {
   tracking.lastResult.estimatedCost = costInfo.cost;
   tracking.lastResult.fuelPriceUsed = costInfo.priceUsed;
   document.getElementById('tm-note').value = '';
+  document.getElementById('tm-fuel-onboard').value = '';
 
   closeManualTripModal();
   document.getElementById('trip-modal-overlay').classList.add('show');
@@ -7516,15 +7523,32 @@ async function confirmSaveTrip() {
     note,
     route: downsampleRoute(tracking.points, 150),
   });
-  state.fuel.levelLiters = clampFuelLevel(state.fuel.levelLiters - tracking.lastResult.fuelLiters);
+
+  // Se l'utente indica il carburante realmente a bordo, lo usiamo al posto della stima GPS/durata
+  // e, potendo calcolare quanto è stato consumato davvero, ricalibriamo il consumo medio del motore.
+  const fuelBefore = state.fuel.levelLiters;
+  const fuelOnboardInput = parseFloat(document.getElementById('tm-fuel-onboard').value);
+  let consumptionUpdated = null;
+  if (!isNaN(fuelOnboardInput) && fuelOnboardInput >= 0) {
+    const consumedActual = fuelBefore - fuelOnboardInput;
+    const durationHrs = tracking.lastResult.durationSec / 3600;
+    if (consumedActual > 0 && durationHrs > 0) {
+      consumptionUpdated = Math.round((consumedActual / durationHrs) * 10) / 10;
+      if (state.settings.curveEnabled) state.settings.curve.lphCruise = consumptionUpdated;
+      else state.settings.consumoLph = consumptionUpdated;
+    }
+    state.fuel.levelLiters = clampFuelLevel(fuelOnboardInput);
+  } else {
+    state.fuel.levelLiters = clampFuelLevel(fuelBefore - tracking.lastResult.fuelLiters);
+  }
   state.oil.levelLiters = clampOilLevel(state.oil.levelLiters - oilLitersForFuel(tracking.lastResult.fuelLiters));
 
   document.getElementById('trip-modal-overlay').classList.remove('show');
   resetTripUI();
-  showToast('Uscita salvata nel giornale di bordo');
+  showToast(consumptionUpdated != null ? `Uscita salvata · consumo medio aggiornato a ${consumptionUpdated} L/h` : 'Uscita salvata nel giornale di bordo');
   renderTripsList();
   renderDashboard();
-  Promise.all([saveTrips(), saveFuel(), saveOil()]);
+  Promise.all([saveTrips(), saveFuel(), saveOil(), saveSettings()]);
 }
 
 function deleteTrip(id) {
