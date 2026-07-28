@@ -8,10 +8,13 @@
  * notifica push a chi ha registrato un dispositivo (users/{uid}/pushTokens/{token},
  * scritto dal client in savePushToken() quando l'app gira dentro Capacitor su iOS).
  *
- * NOTA: copre assicurazione/bollo/revisione per gommone+carrello e per auto/scooter.
- * Non copre (ancora) le scadenze di manutenzione motore/parti (STANDARD_PART_ORDER) né le
- * dotazioni di sicurezza (equipment): quella logica lato client è più intricata (basata su
- * ore motore oltre che su date) e non è stata riportata qui in questa prima versione.
+ * NOTA: copre assicurazione/bollo/revisione per gommone+carrello. L'app iOS (ios-app/) è
+ * ormai solo gommone, quindi le chiavi auto_/scooter_ non vengono più controllate qui — chi
+ * usa auto/scooter dal sito web non registra comunque un dispositivo per le notifiche push
+ * (quella parte esiste solo dentro l'app Capacitor). Non copre (ancora) le scadenze di
+ * manutenzione motore/parti (STANDARD_PART_ORDER) né le dotazioni di sicurezza (equipment):
+ * quella logica lato client è più intricata (basata su ore motore oltre che su date) e non
+ * è stata riportata qui in questa prima versione.
  */
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const admin = require('firebase-admin');
@@ -25,12 +28,6 @@ const DEADLINE_SOURCES = [
   { key: 'carrelloInsurances', label: 'Assicurazione carrello', thresholdDays: 60 },
   { key: 'carrelloRevisioni', label: 'Revisione carrello', thresholdDays: 90 },
   { key: 'carrelloBollo', label: 'Bollo carrello', thresholdDays: 60 },
-  { key: 'auto_insurances', label: 'Assicurazione auto', thresholdDays: 60 },
-  { key: 'auto_bollo', label: 'Bollo auto', thresholdDays: 60 },
-  { key: 'auto_revisioni', label: 'Revisione auto', thresholdDays: 90 },
-  { key: 'scooter_insurances', label: 'Assicurazione scooter', thresholdDays: 60 },
-  { key: 'scooter_bollo', label: 'Bollo scooter', thresholdDays: 60 },
-  { key: 'scooter_revisioni', label: 'Revisione scooter', thresholdDays: 90 },
 ];
 
 // Non rimandare la stessa notifica più spesso di così, anche se resta entro la soglia.

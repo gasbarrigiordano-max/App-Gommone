@@ -1,8 +1,22 @@
-# Giornale di Bordo — app iOS (Capacitor)
+# Giornale di Bordo — app iOS (Capacitor), solo gommone
 
-Questa cartella impacchetta lo stesso `index.html` del sito (nessuna copia separata:
-`npm run sync` lo ricopia da `../index.html` a ogni build) dentro un progetto Capacitor,
-con due funzionalità native aggiunte rispetto alla versione web:
+Questa cartella impacchetta in un progetto Capacitor **una versione dedicata e separata**
+dell'app, incentrata solo sul gommone: `ios-app/www/index.html` è un file a sé stante,
+copiato una volta dalla radice del repo e poi editato per togliere la schermata di scelta
+veicolo (auto/scooter/gommone) e avviarsi direttamente nell'app barca — **non è più
+collegato o sincronizzato automaticamente con `../index.html`**, che resta intatto e
+continua a servire il sito con tutti e tre i veicoli. Se in futuro modifichi qualcosa nel
+sito che vuoi anche nell'app iOS (o viceversa), va riportato a mano nell'altro file: sono
+due file indipendenti da qui in avanti.
+
+Il codice di auto/scooter (markup, funzioni `va*`, ecc.) è ancora fisicamente presente in
+`ios-app/www/index.html` — non l'ho rimosso riga per riga, perché tagliare migliaia di righe
+di codice interconnesso senza poterlo compilare/testare avrebbe un rischio di rottura ben
+più alto del beneficio. È semplicemente **irraggiungibile**: la schermata di scelta veicolo
+non c'è più, l'app va dritta al gommone e non esiste alcun pulsante o link per uscirne. Se
+vuoi anche la pulizia fisica del codice inutilizzato, è un lavoro a parte che possiamo fare.
+
+Oltre a questo, ci sono due funzionalità native aggiunte rispetto alla versione web:
 
 1. **Notifiche push per le scadenze** (assicurazione, bollo, revisione) — plugin ufficiale
    `@capacitor/push-notifications` + un backend Firebase Cloud Functions in `../functions/`.
@@ -23,9 +37,10 @@ un dispositivo reale.
 
 - Progetto Capacitor con piattaforma iOS generata (`ios/App/App.xcodeproj`).
 - `@capacitor/push-notifications` installato e collegato.
-- `index.html` aggiornato (stesso file usato dal sito): registrazione push
-  feature-detected (no-op sul sito web), chiamate alla Live Activity all'inizio/durante/fine
-  di un'uscita GPS (anche queste no-op sul sito web).
+- `www/index.html`: file separato, parte dal contenuto del sito ma senza launcher/scelta
+  veicolo — si avvia direttamente sul gommone. Registrazione push feature-detected (no-op se
+  aperto in un browser normale), chiamate alla Live Activity all'inizio/durante/fine di
+  un'uscita GPS.
 - `AppDelegate.swift` aggiornato con i callback APNs richiesti dal plugin push.
 - `Info.plist`: aggiunte le chiavi per il permesso di localizzazione e per abilitare le
   Live Activity (`NSSupportsLiveActivities`).
@@ -35,10 +50,10 @@ un dispositivo reale.
   `TripActivityWidgetBundle.swift` + `TripActivityWidgetLiveActivity.swift` (pensati per un
   nuovo target Widget Extension da creare in Xcode, vedi sotto).
 - Backend `../functions/index.js`: una Cloud Function schedulata (una volta al giorno) che
-  controlla assicurazione/bollo/revisione di gommone, carrello, auto e scooter e manda una
-  notifica push a chi ha un dispositivo registrato. **Non copre ancora** le scadenze di
-  manutenzione motore (dipendono anche dalle ore di navigazione, logica più complessa) né le
-  dotazioni di sicurezza — se le vuoi, va esteso.
+  controlla assicurazione/bollo/revisione di gommone e carrello e manda una notifica push a
+  chi ha un dispositivo registrato (niente auto/scooter: l'app iOS non li usa più).
+  **Non copre ancora** le scadenze di manutenzione motore (dipendono anche dalle ore di
+  navigazione, logica più complessa) né le dotazioni di sicurezza — se le vuoi, va esteso.
 
 ## Passaggi che restano da fare (servono un Mac + Xcode)
 
@@ -52,10 +67,12 @@ del target App in Xcode ("Signing & Capabilities").
 ```
 cd ios-app
 npm install       # se non già fatto
-npm run sync      # copia index.html aggiornato + npx cap sync ios
+npm run sync      # npx cap sync ios (rilegge www/index.html così com'è)
 npm run open      # apre Xcode
 ```
-Da rilanciare (`npm run sync`) ogni volta che modifichi `index.html` nella radice del repo.
+Da rilanciare (`npm run sync`) ogni volta che modifichi `ios-app/www/index.html` — che è il
+file da editare per qualsiasi modifica specifica dell'app iOS (non `../index.html`, che è il
+sito e non ha più nulla a che fare con questa cartella).
 
 ### 3. Abilitare Push Notifications (Xcode)
 Target **App** → tab "Signing & Capabilities" → "+ Capability" → **Push Notifications**.

@@ -2,10 +2,9 @@
   "name": "giornale-di-bordo-ios",
   "private": true,
   "version": "1.0.0",
-  "description": "Wrapper Capacitor per pubblicare Giornale di Bordo su App Store",
+  "description": "Wrapper Capacitor per pubblicare Giornale di Bordo (solo gommone) su App Store",
   "scripts": {
-    "copy-web": "node scripts/copy-web.js",
-    "sync": "npm run copy-web && npx cap sync ios",
+    "sync": "npx cap sync ios",
     "open": "npx cap open ios"
   },
   "dependencies": {
