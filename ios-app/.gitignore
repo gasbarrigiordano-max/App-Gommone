@@ -1,0 +1,11 @@
+node_modules/
+www/
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
+.build/
+*.ipa
+*.dSYM.zip
+*.dSYM

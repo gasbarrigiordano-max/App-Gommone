@@ -2963,6 +2963,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.15.0/firebase-auth-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.15.0/firebase-firestore-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- Capacitor: presente/attivo solo dentro l'app iOS impacchettata in ios-app/. Su GitHub Pages
+     questi due script non trovano window.Capacitor.isNativePlatform()==true e restano inerti. -->
+<script src="https://unpkg.com/@capacitor/core@8.4.2/dist/capacitor.js"></script>
+<script src="https://unpkg.com/@capacitor/push-notifications@8.1.2/dist/plugin.js"></script>
 <script>
 /* ============================================================
    GIORNALE DI BORDO — logica app
@@ -4577,6 +4581,45 @@ function initFirebase() {
     console.error('Firebase init error', e);
     return false;
   }
+}
+
+/* ---------------- Notifiche push (solo dentro l'app iOS via Capacitor) ----------------
+   Su GitHub Pages/browser window.Capacitor non esiste (o isNativePlatform() è false):
+   queste funzioni non fanno nulla, il sito web resta invariato. */
+function pushNotificationsPlugin() {
+  if (!window.Capacitor || !Capacitor.isNativePlatform || !Capacitor.isNativePlatform()) return null;
+  return (Capacitor.Plugins && Capacitor.Plugins.PushNotifications) || null;
+}
+async function savePushToken(token) {
+  if (!firebaseUser || !firebaseDb || !token) return;
+  try {
+    await firebaseDb.collection('users').doc(firebaseUser.uid)
+      .collection('pushTokens').doc(token).set({
+        token, platform: Capacitor.getPlatform(), updatedAt: new Date().toISOString(),
+      });
+  } catch (e) { console.warn('Salvataggio token push fallito', e); }
+}
+async function removePushToken(token) {
+  if (!firebaseUser || !firebaseDb || !token) return;
+  try { await firebaseDb.collection('users').doc(firebaseUser.uid).collection('pushTokens').doc(token).delete(); }
+  catch (e) { /* non bloccante */ }
+}
+function wirePushListeners() {
+  const PushNotifications = pushNotificationsPlugin();
+  if (!PushNotifications || wirePushListeners._wired) return;
+  wirePushListeners._wired = true;
+  PushNotifications.addListener('registration', (token) => { savePushToken(token.value); });
+  PushNotifications.addListener('registrationError', (err) => { console.warn('Registrazione notifiche push fallita', err); });
+}
+async function setupPushNotifications() {
+  const PushNotifications = pushNotificationsPlugin();
+  if (!PushNotifications) return;
+  try {
+    let perm = await PushNotifications.checkPermissions();
+    if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') perm = await PushNotifications.requestPermissions();
+    if (perm.receive !== 'granted') return;
+    await PushNotifications.register();
+  } catch (e) { console.warn('Registrazione push non disponibile', e); }
 }
 
 async function storageGet(key) {
@@ -7330,6 +7373,7 @@ function startTrip() {
     enableHighAccuracy: true, maximumAge: 1000, timeout: 15000,
   });
   tracking.timerId = setInterval(updateTripTimer, 1000);
+  startLiveActivity();
 }
 
 const MAX_PLAUSIBLE_SPEED_KN = 70;
@@ -7360,6 +7404,7 @@ function onPosition(pos) {
   updateGaugeDisplay();
   updateTripStatsDisplay();
   updateMapTrack(latitude, longitude);
+  updateLiveActivity();
 }
 
 function onPositionError(err) {
@@ -7367,6 +7412,43 @@ function onPositionError(err) {
   if (err.code === err.PERMISSION_DENIED) msg = 'Permesso di localizzazione negato: consentilo dal browser per tracciare l\'uscita.';
   else if (err.code === err.TIMEOUT) msg = 'Segnale GPS non ancora disponibile…';
   setGpsStatus(msg, 'warn');
+}
+
+/* ---------------- Live Activity iOS (uscita in corso) ----------------
+   Disponibile solo dentro l'app iOS via il plugin nativo Capacitor "LiveActivity"
+   (vedi ios-app/ios/App/TripActivityWidget/ e ios-app/ios/App/App/LiveActivityPlugin.swift).
+   Sul sito web window.Capacitor non è nativo: queste funzioni restano no-op. */
+function liveActivityPlugin() {
+  if (!window.Capacitor || !Capacitor.isNativePlatform || !Capacitor.isNativePlatform()) return null;
+  return (Capacitor.Plugins && Capacitor.Plugins.LiveActivity) || null;
+}
+let lastLiveActivityUpdateAt = 0;
+const LIVE_ACTIVITY_MIN_INTERVAL_MS = 5000; // non aggiornare più spesso di così (linee guida Apple)
+async function startLiveActivity() {
+  const plugin = liveActivityPlugin();
+  if (!plugin) return;
+  lastLiveActivityUpdateAt = 0;
+  try { await plugin.start({ speedKn: 0, distanceNm: 0, elapsedSeconds: 0, fuelLiters: 0 }); }
+  catch (e) { console.warn('Live Activity non avviata', e); }
+}
+async function updateLiveActivity(force) {
+  const plugin = liveActivityPlugin();
+  if (!plugin || !tracking.active || !tracking.startTime) return;
+  const now = Date.now();
+  if (!force && now - lastLiveActivityUpdateAt < LIVE_ACTIVITY_MIN_INTERVAL_MS) return;
+  lastLiveActivityUpdateAt = now;
+  const elapsedSeconds = Math.round((now - tracking.startTime) / 1000);
+  const elapsedHrs = elapsedSeconds / 3600;
+  const avg = elapsedHrs > 0 ? tracking.distanceNm / elapsedHrs : 0;
+  const fuelLiters = estimateFuelForTrip({ durationHrs: elapsedHrs, avgSpeedKn: avg, regimeHours: tracking.regimeHours });
+  try {
+    await plugin.update({ speedKn: tracking.currentSpeedKn || 0, distanceNm: tracking.distanceNm || 0, elapsedSeconds, fuelLiters });
+  } catch (e) { /* non bloccante */ }
+}
+async function endLiveActivity() {
+  const plugin = liveActivityPlugin();
+  if (!plugin) return;
+  try { await plugin.end(); } catch (e) { /* non bloccante */ }
 }
 
 function liveConsumptionEstimate(speedKn) {
@@ -7399,6 +7481,7 @@ function updateTripTimer() {
   const formatted = fmtDuration(sec);
   document.getElementById('trip-time').textContent = formatted;
   document.getElementById('cockpit-time').textContent = formatted;
+  updateLiveActivity();
 }
 function updateTripStatsDisplay() {
   const elapsedHrs = (Date.now() - tracking.startTime) / 3600000;
@@ -7412,6 +7495,7 @@ function stopTrip() {
   tracking.active = false;
   if (tracking.watchId != null) navigator.geolocation.clearWatch(tracking.watchId);
   if (tracking.timerId != null) clearInterval(tracking.timerId);
+  endLiveActivity();
 
   setRecordingUI(false);
   document.getElementById('trip-map').classList.remove('show');
@@ -8120,6 +8204,8 @@ async function init() {
           renderLauncherCards();
           document.getElementById('launcher-screen').style.display = 'flex';
           await bootApp();
+          wirePushListeners();
+          setupPushNotifications();
         } else {
           showAuthScreen(true);
           document.getElementById('launcher-screen').style.display = 'none';

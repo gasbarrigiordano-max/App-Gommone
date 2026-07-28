@@ -1,0 +1,14 @@
+{
+  "name": "giornale-di-bordo-functions",
+  "private": true,
+  "description": "Backend Firebase Cloud Functions: notifiche push per scadenze (assicurazione/bollo/revisione)",
+  "engines": { "node": "20" },
+  "main": "index.js",
+  "scripts": {
+    "lint": "node --check index.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^5.1.1"
+  }
+}
