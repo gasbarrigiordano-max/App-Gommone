@@ -1,13 +1,13 @@
 App/build
 App/Pods
 App/output
-App/App/public
 DerivedData
 xcuserdata
 
 # Cordova plugins for Capacitor
 capacitor-cordova-ios-plugins
 
-# Generated Config files
-App/App/capacitor.config.json
-App/App/config.xml
+# App/App/public, capacitor.config.json e config.xml sono generati da "npx cap sync" ma
+# li committiamo comunque: chi scarica lo zip da GitHub deve poter aprire e compilare il
+# progetto in Xcode subito, senza dover prima lanciare comandi da terminale che potrebbero
+# non conoscere. Se modifichi ios-app/www/index.html, rilancia "npm run sync" e ricommitta.

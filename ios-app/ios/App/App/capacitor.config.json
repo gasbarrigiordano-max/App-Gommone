@@ -1,0 +1,8 @@
+{
+	"appId": "com.giornaledibordo.app",
+	"appName": "Giornale di Bordo",
+	"webDir": "www",
+	"packageClassList": [
+		"PushNotificationsPlugin"
+	]
+}
