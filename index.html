@@ -2076,20 +2076,21 @@
       <div class="field-hint">2 tempi mostra la scheda "Olio miscela" nel Motore. 4 tempi la nasconde e traccia l'olio motore tra i Ricambi.</div>
     </div>
     <div class="field">
-      <label>Olio miscela (2T) / olio motore (4T)</label>
+      <label id="motore-olio-label">Olio miscela (2T)</label>
       <input type="text" id="set-motore-olio" placeholder="es. XD50">
     </div>
     <div class="stat-row">
-      <div class="field" style="margin-bottom:0;">
-        <label>Capienza serbatoio olio (L)</label>
+      <div class="field" id="oil-capacity-field" style="margin-bottom:0;">
+        <label id="oil-capacity-label">Capienza serbatoio olio (L)</label>
         <input type="number" id="set-oil-capacity" inputmode="decimal" placeholder="es. 6.8">
       </div>
-      <div class="field" style="margin-bottom:0;">
+      <div class="field" id="oil-ratio-field" style="margin-bottom:0;">
         <label>Rapporto miscela (1:X)</label>
         <input type="number" id="set-oil-ratio" inputmode="decimal" placeholder="es. 100">
       </div>
     </div>
-    <div class="field-hint" style="margin-top:8px; margin-bottom:16px;">Rapporto medio stimato: 1 litro d'olio ogni X litri di benzina. Per motori a iniezione elettronica (come il Ficht) varia col regime — è una media, correggila se noti differenze reali nel tempo.</div>
+    <div class="field-hint" id="oil-ratio-hint" style="margin-top:8px; margin-bottom:16px;">Rapporto medio stimato: 1 litro d'olio ogni X litri di benzina. Per motori a iniezione elettronica (come il Ficht) varia col regime — è una media, correggila se noti differenze reali nel tempo.</div>
+    <div class="field-hint" id="oil-capacity-4t-hint" style="margin-top:8px; margin-bottom:16px; display:none;">Quantità di olio motore necessaria per un cambio completo — utile come riferimento quando registri il cambio tra i Ricambi.</div>
     <div class="field">
       <label>Sigla motore</label>
       <input type="text" id="set-motore-sigla" placeholder="es. E90FPL">
@@ -5041,6 +5042,21 @@ function applyEngineTypeVisibility() {
   if (oilSection) oilSection.style.display = is4t ? 'none' : '';
   const tripOilRow = document.getElementById('trip-oil-row');
   if (tripOilRow) tripOilRow.style.display = is4t ? 'none' : '';
+
+  const motoreOlioLabel = document.getElementById('motore-olio-label');
+  if (motoreOlioLabel) motoreOlioLabel.textContent = is4t ? 'Olio motore (4T)' : 'Olio miscela (2T)';
+
+  const oilCapacityLabel = document.getElementById('oil-capacity-label');
+  if (oilCapacityLabel) oilCapacityLabel.textContent = is4t ? 'Quantità olio motore (L)' : 'Capienza serbatoio olio (L)';
+  const oilCapacityField = document.getElementById('oil-capacity-field');
+  if (oilCapacityField) oilCapacityField.style.gridColumn = is4t ? '1 / -1' : '';
+
+  const oilRatioField = document.getElementById('oil-ratio-field');
+  if (oilRatioField) oilRatioField.style.display = is4t ? 'none' : '';
+  const oilRatioHint = document.getElementById('oil-ratio-hint');
+  if (oilRatioHint) oilRatioHint.style.display = is4t ? 'none' : '';
+  const oilCapacity4tHint = document.getElementById('oil-capacity-4t-hint');
+  if (oilCapacity4tHint) oilCapacity4tHint.style.display = is4t ? '' : 'none';
 }
 async function onEngineTypeChange() {
   state.settings.engineType = document.getElementById('set-engine-type').value;
