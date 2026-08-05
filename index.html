@@ -3170,18 +3170,32 @@ function vaCurrentInsurance() { return vaCurrentOf(vState.insurances); }
 function vaCurrentBollo() { return vaCurrentOf(vState.bollo); }
 function vaCurrentRevisione() { return vaCurrentOf(vState.revisioni); }
 
+// Una volta caricati i dati di un veicolo in questa sessione, restano qui: rientrando nella
+// stessa sezione (es. Auto -> Launcher -> Auto) si riusano invece di rifare 8 letture di rete.
+// Le funzioni di salvataggio scrivono sullo stesso oggetto vState, quindi la cache resta
+// aggiornata da sola; si azzera solo ricaricando la pagina.
+const vStateCache = {};
 async function vaBoot(type) {
   currentVehicle = type === 'auto'
     ? { type: 'auto', prefix: 'auto_', label: 'Auto', icon: '🚗' }
     : { type: 'scooter', prefix: 'scooter_', label: 'Scooter', icon: '🛵' };
-  vState = { settings: { marca: '', modello: '', targa: '', kmTotali: 0 }, expenses: [], refuels: [], insurances: [], revisioni: [], bollo: [], manutenzione: [], parts: {} };
   document.getElementById('va-icon').textContent = currentVehicle.icon;
   document.getElementById('va-brand-label').textContent = currentVehicle.label;
-  vaRenderMasthead();
   document.getElementById('launcher-screen').style.display = 'none';
   document.getElementById('vehicle-app').style.display = 'flex';
+
+  if (vStateCache[type]) {
+    vState = vStateCache[type];
+    vaRenderMasthead();
+    vaShowTab('riepilogo');
+    return;
+  }
+
+  vState = { settings: { marca: '', modello: '', targa: '', kmTotali: 0 }, expenses: [], refuels: [], insurances: [], revisioni: [], bollo: [], manutenzione: [], parts: {} };
+  vaRenderMasthead();
   vaShowTab('riepilogo');
   await vaLoadAll();
+  vStateCache[type] = vState;
   vaRenderMasthead();
   vaRefreshCurrentTab();
 }
