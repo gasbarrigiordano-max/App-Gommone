@@ -1807,6 +1807,8 @@
           <div class="fuel-bar-caption" id="oil-bar-caption"></div>
           <button class="btn btn-primary" style="margin-top:16px;" onclick="event.stopPropagation(); openOilRefuelModal()">+ Registra rifornimento</button>
           <div class="refuel-mini-list" id="oil-refuel-mini-list"></div>
+          <div class="section-label" style="margin-top:16px;">Consumo per uscita</div>
+          <div class="refuel-mini-list" id="oil-trip-consumption-list"></div>
         </div>
       </div>
       </div>
@@ -2061,20 +2063,29 @@
       <div class="field-hint">Ore già segnate dal contaore quando hai iniziato a usare l'app. Da qui parte il calcolo di tutte le ore percorse — si sommano automaticamente all'anno corrente in Motore.</div>
     </div>
     <div class="field">
-      <label>Olio miscela (2T) / olio motore (4T)</label>
+      <label>Tipo motore</label>
+      <select id="set-engine-type" onchange="onEngineTypeChange()">
+        <option value="2t">2 tempi (miscela)</option>
+        <option value="4t">4 tempi (olio motore)</option>
+      </select>
+      <div class="field-hint">2 tempi mostra la scheda "Olio miscela" nel Motore. 4 tempi la nasconde e traccia l'olio motore tra i Ricambi.</div>
+    </div>
+    <div class="field">
+      <label id="motore-olio-label">Olio miscela (2T)</label>
       <input type="text" id="set-motore-olio" placeholder="es. XD50">
     </div>
     <div class="stat-row">
-      <div class="field" style="margin-bottom:0;">
-        <label>Capienza serbatoio olio (L)</label>
+      <div class="field" id="oil-capacity-field" style="margin-bottom:0;">
+        <label id="oil-capacity-label">Capienza serbatoio olio (L)</label>
         <input type="number" id="set-oil-capacity" inputmode="decimal" placeholder="es. 6.8">
       </div>
-      <div class="field" style="margin-bottom:0;">
+      <div class="field" id="oil-ratio-field" style="margin-bottom:0;">
         <label>Rapporto miscela (1:X)</label>
         <input type="number" id="set-oil-ratio" inputmode="decimal" placeholder="es. 100">
       </div>
     </div>
-    <div class="field-hint" style="margin-top:8px; margin-bottom:16px;">Rapporto medio stimato: 1 litro d'olio ogni X litri di benzina. Per motori a iniezione elettronica (come il Ficht) varia col regime — è una media, correggila se noti differenze reali nel tempo.</div>
+    <div class="field-hint" id="oil-ratio-hint" style="margin-top:8px; margin-bottom:16px;">Rapporto medio stimato: 1 litro d'olio ogni X litri di benzina. Per motori a iniezione elettronica (come il Ficht) varia col regime — è una media, correggila se noti differenze reali nel tempo.</div>
+    <div class="field-hint" id="oil-capacity-4t-hint" style="margin-top:8px; margin-bottom:16px; display:none;">Quantità di olio motore necessaria per un cambio completo — utile come riferimento quando registri il cambio tra i Ricambi.</div>
     <div class="field">
       <label>Sigla motore</label>
       <input type="text" id="set-motore-sigla" placeholder="es. E90FPL">
@@ -2274,6 +2285,10 @@
     <div class="field">
       <label>Carburante stimato</label>
       <input type="text" id="tm-fuel" readonly>
+    </div>
+    <div class="field" id="trip-oil-row">
+      <label>Consumo olio miscela stimato</label>
+      <input type="text" id="tm-oil" readonly>
     </div>
     <div class="field">
       <label>Carburante a bordo ora (opzionale)</label>
@@ -4488,6 +4503,7 @@ let state = {
     motorePeso: 145,
     oilRatio: 100,
     oilTankCapacity: 6.8,
+    engineType: '2t',
     motoreSectionOrder: ['specifiche', 'assicurazione', 'olio', 'ricambi'],
     statsSectionOrder: ['categoria', 'mensile', 'uscite', 'costomedio'],
     dashboardSectionOrder: ['totali', 'scadenze', 'carburante', 'oggi', 'attivita'],
@@ -4524,6 +4540,7 @@ let state = {
       olio_piede: { label: 'Olio piede', productCode: '', oemCode: '', torqueNm: null, history: [] },
       anodo_trim: { label: 'Anodo trim', productCode: '', oemCode: '', torqueNm: null, history: [] },
       anodo_piede: { label: 'Anodo piede', productCode: '', oemCode: '', torqueNm: null, history: [] },
+      olio_motore: { label: 'Olio motore', productCode: '', oemCode: '', torqueNm: null, history: [] },
     },
     altro: [],
   },
@@ -4800,6 +4817,7 @@ const DEFAULT_STANDARD_PART_LABELS = {
   olio_piede: 'Olio piede',
   anodo_trim: 'Anodo trim',
   anodo_piede: 'Anodo piede',
+  olio_motore: 'Olio motore',
 };
 function fillMissingStandardParts(standard) {
   Object.keys(DEFAULT_STANDARD_PART_LABELS).forEach(key => {
@@ -4999,6 +5017,35 @@ async function onHasCarrelloChange() {
   renderDeadlines();
 }
 
+function applyEngineTypeVisibility() {
+  const is4t = state.settings.engineType === '4t';
+  const oilSection = document.querySelector('.motore-section[data-key="olio"]');
+  if (oilSection) oilSection.style.display = is4t ? 'none' : '';
+  const tripOilRow = document.getElementById('trip-oil-row');
+  if (tripOilRow) tripOilRow.style.display = is4t ? 'none' : '';
+
+  const motoreOlioLabel = document.getElementById('motore-olio-label');
+  if (motoreOlioLabel) motoreOlioLabel.textContent = is4t ? 'Olio motore (4T)' : 'Olio miscela (2T)';
+
+  const oilCapacityLabel = document.getElementById('oil-capacity-label');
+  if (oilCapacityLabel) oilCapacityLabel.textContent = is4t ? 'Quantità olio motore (L)' : 'Capienza serbatoio olio (L)';
+  const oilCapacityField = document.getElementById('oil-capacity-field');
+  if (oilCapacityField) oilCapacityField.style.gridColumn = is4t ? '1 / -1' : '';
+
+  const oilRatioField = document.getElementById('oil-ratio-field');
+  if (oilRatioField) oilRatioField.style.display = is4t ? 'none' : '';
+  const oilRatioHint = document.getElementById('oil-ratio-hint');
+  if (oilRatioHint) oilRatioHint.style.display = is4t ? 'none' : '';
+  const oilCapacity4tHint = document.getElementById('oil-capacity-4t-hint');
+  if (oilCapacity4tHint) oilCapacity4tHint.style.display = is4t ? '' : 'none';
+}
+async function onEngineTypeChange() {
+  state.settings.engineType = document.getElementById('set-engine-type').value;
+  await saveSettings();
+  applyEngineTypeVisibility();
+  renderMotore();
+}
+
 function renderTodaySummary() {
   const today = todayISO();
   const todayTrips = state.trips.filter(t => t.date === today);
@@ -5041,7 +5088,7 @@ function renderDeadlines() {
     .map(it => ({ ...it, daysLeft: Math.round((it.date - now) / 86400000) }))
     .filter(it => it.daysLeft <= it.threshold);
 
-  STANDARD_PART_ORDER.forEach(key => {
+  visibleStandardPartKeys().forEach(key => {
     const status = partMaintenanceStatus(key);
     if (!status) return;
     if (status.useHours) {
@@ -5265,6 +5312,29 @@ function renderOilSection() {
         <div class="rr-amount">-${fmtEUR(r.euro)}</div>
       </div>`).join('');
   }
+
+  renderOilTripConsumption();
+}
+
+function renderOilTripConsumption() {
+  const container = document.getElementById('oil-trip-consumption-list');
+  if (!container) return;
+  const recentTrips = [...state.trips].sort((a, b) => tripSortKey(b) - tripSortKey(a)).slice(0, 5);
+  if (!recentTrips.length) {
+    container.innerHTML = '';
+    return;
+  }
+  container.innerHTML = recentTrips.map(t => {
+    const oilL = oilLitersForFuel(t.fuelLiters);
+    return `
+      <div class="refuel-row" style="cursor:pointer" onclick="openTripEditModal('${t.id}')">
+        <div>
+          <div class="rr-left">${fmtDate(t.date)}</div>
+          <div class="rr-sub">${t.distanceNm.toFixed(1)} nm · ${t.fuelLiters.toFixed(1)} L benzina</div>
+        </div>
+        <div class="rr-amount">${oilL.toFixed(2)} L</div>
+      </div>`;
+  }).join('');
 }
 
 /* ---- Curva di consumo a più regimi ---- */
@@ -5305,6 +5375,7 @@ function fuelPriceForCalc() {
 }
 function populateFuelAndCostFields(fuelLiters) {
   document.getElementById('tm-fuel').value = `${fuelLiters.toFixed(1)} L`;
+  document.getElementById('tm-oil').value = `${oilLitersForFuel(fuelLiters).toFixed(2)} L`;
   const { price, source } = fuelPriceForCalc();
   const cost = fuelLiters * price;
   document.getElementById('tm-cost').value = price > 0 ? fmtEUR(cost) : 'prezzo non disponibile';
@@ -5607,7 +5678,11 @@ async function saveOilLevel() {
 }
 
 /* ---------------- Motore / Ricambi ---------------- */
-const STANDARD_PART_ORDER = ['filtro_separatore', 'filtro_carburante', 'candele', 'girante', 'olio_piede', 'anodo_trim', 'anodo_piede'];
+const STANDARD_PART_ORDER = ['filtro_separatore', 'filtro_carburante', 'candele', 'girante', 'olio_piede', 'anodo_trim', 'anodo_piede', 'olio_motore'];
+function visibleStandardPartKeys() {
+  const is4t = state.settings.engineType === '4t';
+  return STANDARD_PART_ORDER.filter(key => key !== 'olio_motore' || is4t);
+}
 const MAINTENANCE_YEARS_INTERVAL = 2;
 const MAINTENANCE_HOURS_INTERVAL = 100;
 
@@ -5636,7 +5711,7 @@ function partMaintenanceStatus(key) {
 
 function renderMaintenanceDeadlines() {
   const container = document.getElementById('maintenance-deadlines-list');
-  const all = STANDARD_PART_ORDER.map(key => partMaintenanceStatus(key)).filter(Boolean);
+  const all = visibleStandardPartKeys().map(key => partMaintenanceStatus(key)).filter(Boolean);
   const rows = all.filter(r => (r.useHours ? r.hoursLeft : r.daysLeft) <= (r.useHours ? 10 : 60));
 
   if (!rows.length) {
@@ -5665,6 +5740,7 @@ const STANDARD_PART_FIELD_OVERRIDES = {
   girante: { torque: false, pricingMode: 'simple' },
   anodo_trim: { pricingMode: 'simple' },
   anodo_piede: { pricingMode: 'simple' },
+  olio_motore: { oem: false, torque: false, codeLabel: 'Prodotto', codePlaceholder: 'es. 10W-40 semisintetico', pricingMode: 'liter' },
 };
 function fieldsFor(key) {
   return {
@@ -6643,7 +6719,7 @@ function getLastChangeDate(part) {
   return part.history.reduce((max, h) => (h.date && (!max || h.date > max)) ? h.date : max, null);
 }
 function sortedStandardKeys() {
-  return [...STANDARD_PART_ORDER].sort((a, b) => {
+  return [...visibleStandardPartKeys()].sort((a, b) => {
     const da = getLastChangeDate(state.engineParts.standard[a]);
     const db = getLastChangeDate(state.engineParts.standard[b]);
     if (da && db) return db.localeCompare(da);
@@ -7944,6 +8020,7 @@ function renderImpostazioni() {
   document.getElementById('set-motore-anno').value = state.settings.motoreAnno || '';
   document.getElementById('set-motore-cc').value = state.settings.motoreCc || '';
   document.getElementById('set-ore-origine').value = state.settings.engineHoursOffset || '';
+  document.getElementById('set-engine-type').value = state.settings.engineType || '2t';
   document.getElementById('set-motore-olio').value = state.settings.motoreOlio || '';
   document.getElementById('set-oil-capacity').value = state.settings.oilTankCapacity || '';
   document.getElementById('set-oil-ratio').value = state.settings.oilRatio || '';
@@ -8184,6 +8261,7 @@ async function bootApp() {
   await loadAll();
   renderMasthead();
   applyCarrelloVisibility();
+  applyEngineTypeVisibility();
   renderDashboard();
   document.getElementById('fab-add').style.display = 'none';
 }
