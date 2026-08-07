@@ -1511,7 +1511,7 @@
   </div>
 </div>
 
-<div class="phone">
+<div class="phone" style="display:none">
 
   <div id="phone-back-link-wrap" style="padding:14px 18px 0;">
     <button class="back-link" onclick="showLauncher()">
@@ -3048,7 +3048,10 @@ function showLauncher() {
 }
 function selectVehicle(v) {
   document.getElementById('launcher-screen').style.display = 'none';
-  if (v === 'gommone') return;
+  if (v === 'gommone') {
+    document.querySelector('.phone').style.display = '';
+    return;
+  }
   vaBoot(v);
 }
 
