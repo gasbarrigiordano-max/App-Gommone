@@ -427,6 +427,9 @@
     z-index:3500;
   }
   .modal-overlay.show{display:flex;}
+  /* Il popup di conferma può aprirsi sopra un'altra scheda modale già aperta (es. "Elimina"
+     dentro "Modifica bollo"): deve sempre stare sopra, indipendentemente dall'ordine nel DOM. */
+  #confirm-modal-overlay{z-index:3700;}
   .modal{
     width:100%; max-width:460px; background:var(--navy-deep);
     border-top:1px solid var(--navy-line);
