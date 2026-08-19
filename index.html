@@ -6787,23 +6787,25 @@ function removePartExpense(entry) {
 }
 
 /* ---- Ricerca codice ricambio sugli esplosi online ---- */
-function partLookupUrl(partLabel) {
+function partLookupUrl(partLabel, code) {
+  if (code) return 'https://www.google.com/search?q=' + encodeURIComponent(code);
   const engine = [state.settings.motoreMarca, state.settings.motoreModello, state.settings.motoreSigla].filter(Boolean).join(' ');
   const query = [engine, partLabel, 'ricambio esploso codice'].filter(Boolean).join(' ').trim();
   return 'https://www.google.com/search?q=' + encodeURIComponent(query);
 }
-function openPartLookup(partLabel) {
-  if (!state.settings.motoreMarca && !state.settings.motoreModello) {
+function openPartLookup(partLabel, code) {
+  if (!code && !state.settings.motoreMarca && !state.settings.motoreModello) {
     showToast('Imposta marca e modello del motore in Impostazioni per una ricerca più precisa');
   }
-  window.open(partLookupUrl(partLabel), '_blank', 'noopener');
+  window.open(partLookupUrl(partLabel, code), '_blank', 'noopener');
 }
 function openStandardPartLookup(key) {
-  openPartLookup(state.engineParts.standard[key].label);
+  const p = state.engineParts.standard[key];
+  openPartLookup(p.label, (p.oemCode || p.productCode || '').trim());
 }
 function openAltroPartLookup(id) {
   const p = state.engineParts.altro.find(x => x.id === id);
-  if (p) openPartLookup(p.name);
+  if (p) openPartLookup(p.name, (p.oemCode || p.productCode || '').trim());
 }
 
 function renderStandardParts() {
