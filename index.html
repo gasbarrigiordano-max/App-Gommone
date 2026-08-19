@@ -6786,6 +6786,26 @@ function removePartExpense(entry) {
   return Promise.resolve();
 }
 
+/* ---- Ricerca codice ricambio sugli esplosi online ---- */
+function partLookupUrl(partLabel) {
+  const engine = [state.settings.motoreMarca, state.settings.motoreModello, state.settings.motoreSigla].filter(Boolean).join(' ');
+  const query = [engine, partLabel, 'ricambio esploso codice'].filter(Boolean).join(' ').trim();
+  return 'https://www.google.com/search?q=' + encodeURIComponent(query);
+}
+function openPartLookup(partLabel) {
+  if (!state.settings.motoreMarca && !state.settings.motoreModello) {
+    showToast('Imposta marca e modello del motore in Impostazioni per una ricerca più precisa');
+  }
+  window.open(partLookupUrl(partLabel), '_blank', 'noopener');
+}
+function openStandardPartLookup(key) {
+  openPartLookup(state.engineParts.standard[key].label);
+}
+function openAltroPartLookup(id) {
+  const p = state.engineParts.altro.find(x => x.id === id);
+  if (p) openPartLookup(p.name);
+}
+
 function renderStandardParts() {
   const container = document.getElementById('parts-list-standard');
   const val = (v, suffix) => v || v === 0 ? `<span class="v">${v}${suffix || ''}</span>` : `<span class="v empty">non impostato</span>`;
@@ -6809,7 +6829,10 @@ function renderStandardParts() {
           ${cfg.oem ? `<div class="detail-item"><span class="k">Codice OEM</span>${val(p.oemCode ? escapeHtml(p.oemCode) : '')}</div>` : ''}
           ${cfg.torque ? `<div class="detail-item"><span class="k">Coppia di serraggio</span>${val(p.torqueNm, ' Nm')}</div>` : ''}
         </div>
-        <button class="btn btn-ghost" onclick="event.stopPropagation(); openStandardSpecModal('${key}')">Modifica scheda</button>
+        <div class="btn-row btn-row-compact">
+          <button class="btn btn-ghost" onclick="event.stopPropagation(); openStandardSpecModal('${key}')">Modifica scheda</button>
+          <button class="btn btn-ghost" onclick="event.stopPropagation(); openStandardPartLookup('${key}')">🔍 Cerca ricambio</button>
+        </div>
 
         <div class="section-label" style="margin-top:20px;">Storico cambi</div>
         <div class="history-list">
@@ -7063,7 +7086,10 @@ function renderAltroParts() {
           <div class="detail-item"><span class="k">Prezzo</span>${p.price ? `<span class="v">${fmtEUR(p.price)}</span>` : `<span class="v empty">non impostato</span>`}</div>
         </div>
         ${p.note ? `<div class="field-hint" style="margin-bottom:12px;">${escapeHtml(p.note)}</div>` : ''}
-        <button class="btn btn-ghost" onclick="event.stopPropagation(); openPartModal('${p.id}')">Modifica</button>
+        <div class="btn-row btn-row-compact">
+          <button class="btn btn-ghost" onclick="event.stopPropagation(); openPartModal('${p.id}')">Modifica</button>
+          <button class="btn btn-ghost" onclick="event.stopPropagation(); openAltroPartLookup('${p.id}')">🔍 Cerca ricambio</button>
+        </div>
       </div>
     </div>`;
   }).join('');
