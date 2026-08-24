@@ -1994,6 +1994,9 @@
         <div class="stat-card"><div class="k">Carburante reale (rifornimenti)</div><div class="v" id="stat-fuel-real-total">0 L</div></div>
       </div>
       <div class="field-hint" id="stat-fuel-cost-hint" style="margin-top:8px;"></div>
+      <div class="stat-row" style="margin-top:10px;">
+        <div class="stat-card"><div class="k">Consumo per miglio</div><div class="v" id="stat-fuel-per-nm">— L/nm</div></div>
+      </div>
     </div>
     </div>
 
@@ -8030,6 +8033,9 @@ function renderStatistiche() {
     : state.refuels.filter(r => new Date(r.date).getFullYear() === state.statsYear);
   const totalFuelReal = refuelsInScope.reduce((s, r) => s + r.liters, 0);
   document.getElementById('stat-fuel-real-total').textContent = totalFuelReal.toFixed(0) + ' L';
+
+  const fuelPerNm = totalNm > 0 ? totalFuelReal / totalNm : null;
+  document.getElementById('stat-fuel-per-nm').textContent = fuelPerNm != null ? fuelPerNm.toFixed(2) + ' L/nm' : '—';
 
   // Costo carburante reale (non stimato): somma delle spese carburante nel periodo,
   // comprese quelle segnate "non pagate da me" — a differenza del totale per categoria sopra.
