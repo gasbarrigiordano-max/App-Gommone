@@ -1990,6 +1990,9 @@
         <div class="stat-card"><div class="k">Carburante stimato</div><div class="v brass" id="stat-fuel-total">0 L</div></div>
       </div>
       <div class="stat-row" style="margin-top:10px;">
+        <div class="stat-card"><div class="k">Carburante reale (rifornimenti)</div><div class="v" id="stat-fuel-real-total">0 L</div></div>
+      </div>
+      <div class="stat-row" style="margin-top:10px;">
         <div class="stat-card"><div class="k">Costo carburante</div><div class="v" id="stat-fuel-cost-total">€ 0</div></div>
       </div>
       <div class="field-hint" id="stat-fuel-cost-hint" style="margin-top:8px;"></div>
@@ -8021,6 +8024,14 @@ function renderStatistiche() {
   const totalFuel = trips.reduce((s, t) => s + t.fuelLiters, 0);
   document.getElementById('stat-nm-total').textContent = totalNm.toFixed(1) + ' nm';
   document.getElementById('stat-fuel-total').textContent = totalFuel.toFixed(0) + ' L';
+
+  // Carburante realmente rifornito nel periodo (somma litri dai rifornimenti), a differenza
+  // del "Carburante stimato" sopra che è calcolato dalle uscite (durata/velocità/curva consumo).
+  const refuelsInScope = state.statsYear === 'all'
+    ? state.refuels
+    : state.refuels.filter(r => new Date(r.date).getFullYear() === state.statsYear);
+  const totalFuelReal = refuelsInScope.reduce((s, r) => s + r.liters, 0);
+  document.getElementById('stat-fuel-real-total').textContent = totalFuelReal.toFixed(0) + ' L';
 
   // Costo carburante reale (non stimato): somma delle spese carburante nel periodo,
   // comprese quelle segnate "non pagate da me" — a differenza del totale per categoria sopra.
