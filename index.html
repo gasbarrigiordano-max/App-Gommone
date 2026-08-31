@@ -913,11 +913,21 @@
       <svg class="nav-card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 6l6 6-6 6"/></svg>
     </div>
 
-    <div class="nav-card" id="launcher-card-scooter" onclick="selectVehicle('scooter')">
+    <div class="nav-card" id="launcher-card-scooter" style="margin-bottom:12px;" onclick="selectVehicle('scooter')">
       <div style="display:flex; align-items:center; gap:14px;">
         <span style="font-size:26px;">🛵</span>
         <div>
           <div class="nav-card-title">Scooter</div>
+        </div>
+      </div>
+      <svg class="nav-card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 6l6 6-6 6"/></svg>
+    </div>
+
+    <div class="nav-card" id="launcher-card-moto" onclick="selectVehicle('moto')">
+      <div style="display:flex; align-items:center; gap:14px;">
+        <span style="font-size:26px;">🏍️</span>
+        <div>
+          <div class="nav-card-title">Moto</div>
         </div>
       </div>
       <svg class="nav-card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 6l6 6-6 6"/></svg>
@@ -952,16 +962,22 @@
         <input type="checkbox" id="launcher-toggle-gommone" onchange="toggleLauncherVehicle('gommone')" style="width:22px; height:22px; accent-color:var(--brass); flex-shrink:0;">
       </label>
     </div>
-    <div class="detail-item">
+    <div class="detail-item" style="margin-bottom:8px;">
       <label style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom:0; cursor:pointer;">
         <span style="display:flex; align-items:center; gap:10px;"><span style="font-size:20px;">🛵</span> Scooter</span>
         <input type="checkbox" id="launcher-toggle-scooter" onchange="toggleLauncherVehicle('scooter')" style="width:22px; height:22px; accent-color:var(--brass); flex-shrink:0;">
       </label>
     </div>
+    <div class="detail-item">
+      <label style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom:0; cursor:pointer;">
+        <span style="display:flex; align-items:center; gap:10px;"><span style="font-size:20px;">🏍️</span> Moto</span>
+        <input type="checkbox" id="launcher-toggle-moto" onchange="toggleLauncherVehicle('moto')" style="width:22px; height:22px; accent-color:var(--brass); flex-shrink:0;">
+      </label>
+    </div>
   </div>
 </div>
 
-<!-- ============ APP VEICOLO (Auto / Scooter, struttura condivisa) ============ -->
+<!-- ============ APP VEICOLO (Auto / Scooter / Moto, struttura condivisa) ============ -->
 <div id="vehicle-app" style="display:none; position:fixed; top:0; bottom:0; left:50%; transform:translateX(-50%); width:100%; max-width:460px; z-index:2500; background:var(--navy-deep); flex-direction:column; box-shadow:0 0 60px rgba(0,0,0,0.5);">
   <div class="va-backlink-row" style="padding:14px 18px 0;">
     <button class="back-link" onclick="showLauncher()">
@@ -1536,10 +1552,16 @@
         <input type="checkbox" id="onboard-vehicle-gommone" style="width:22px; height:22px; accent-color:var(--brass); flex-shrink:0;">
       </label>
     </div>
+    <div class="detail-item" style="margin-bottom:8px;">
+      <label style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom:0; cursor:pointer;">
+        <span style="display:flex; align-items:center; gap:10px;"><span style="font-size:20px;">🛵</span> Scooter</span>
+        <input type="checkbox" id="onboard-vehicle-scooter" style="width:22px; height:22px; accent-color:var(--brass); flex-shrink:0;">
+      </label>
+    </div>
     <div class="detail-item" style="margin-bottom:24px;">
       <label style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom:0; cursor:pointer;">
-        <span style="display:flex; align-items:center; gap:10px;"><span style="font-size:20px;">🛵</span> Scooter/Moto</span>
-        <input type="checkbox" id="onboard-vehicle-scooter" style="width:22px; height:22px; accent-color:var(--brass); flex-shrink:0;">
+        <span style="display:flex; align-items:center; gap:10px;"><span style="font-size:20px;">🏍️</span> Moto</span>
+        <input type="checkbox" id="onboard-vehicle-moto" style="width:22px; height:22px; accent-color:var(--brass); flex-shrink:0;">
       </label>
     </div>
 
@@ -3053,7 +3075,8 @@ const VEHICLE_PROPOSALS = {
   },
 };
 
-let launcherPrefs = { auto: true, gommone: true, scooter: true };
+const VEHICLE_TYPES_LIST = ['auto', 'gommone', 'scooter', 'moto'];
+let launcherPrefs = { auto: true, gommone: true, scooter: true, moto: true };
 async function loadLauncherPrefs() {
   try {
     const r = await storageGet('launcherPrefs');
@@ -3061,14 +3084,14 @@ async function loadLauncherPrefs() {
   } catch (e) { /* keep defaults */ }
 }
 function renderLauncherCards() {
-  ['auto', 'gommone', 'scooter'].forEach(v => {
+  VEHICLE_TYPES_LIST.forEach(v => {
     document.getElementById('launcher-card-' + v).style.display = launcherPrefs[v] ? 'flex' : 'none';
   });
-  const anyEnabled = launcherPrefs.auto || launcherPrefs.gommone || launcherPrefs.scooter;
+  const anyEnabled = VEHICLE_TYPES_LIST.some(v => launcherPrefs[v]);
   document.getElementById('launcher-empty-hint').style.display = anyEnabled ? 'none' : 'block';
 }
 function openLauncherSettings() {
-  ['auto', 'gommone', 'scooter'].forEach(v => {
+  VEHICLE_TYPES_LIST.forEach(v => {
     document.getElementById('launcher-toggle-' + v).checked = launcherPrefs[v];
   });
   document.getElementById('launcher-settings-screen').style.display = 'flex';
@@ -3096,7 +3119,7 @@ function selectVehicle(v) {
   vaBoot(v);
 }
 
-/* ================= APP VEICOLO (Auto / Scooter) ================= */
+/* ================= APP VEICOLO (Auto / Scooter / Moto) ================= */
 const VEHICLE_CATEGORIES = [
   { id: 'carburante',    label: 'Carburante',        icon: '⛽' },
   { id: 'manutenzione',  label: 'Manutenzione',      icon: '🔧' },
@@ -3133,6 +3156,24 @@ const VEHICLE_STANDARD_PARTS = {
     ],
   },
   scooter: {
+    ordinaria: [
+      { key: 'olio_motore', label: 'Olio motore', codeLabel: 'Sigla' },
+      { key: 'filtro_olio', label: 'Filtro olio' },
+      { key: 'gomme', label: 'Gomme' },
+      { key: 'filtro_aria', label: 'Filtro aria' },
+      { key: 'candela', label: 'Candela' },
+      { key: 'trasmissione', label: 'Catena/cinghia trasmissione' },
+    ],
+    straordinaria: [
+      { key: 'pastiglie_ant', label: 'Pastiglie freno anteriore' },
+      { key: 'disco_ant', label: 'Disco anteriore' },
+      { key: 'pastiglie_post', label: 'Pastiglie/ceppi posteriori' },
+      { key: 'batteria', label: 'Batteria' },
+    ],
+  },
+  // Stessa struttura dello scooter: la moto condivide il modello di manutenzione a due ruote,
+  // ma è un mezzo indipendente (dati, spese e ricambi propri, prefisso storage "moto_").
+  moto: {
     ordinaria: [
       { key: 'olio_motore', label: 'Olio motore', codeLabel: 'Sigla' },
       { key: 'filtro_olio', label: 'Filtro olio' },
@@ -3234,10 +3275,13 @@ function vaCurrentRevisione() { return vaCurrentOf(vState.revisioni); }
 // Le funzioni di salvataggio scrivono sullo stesso oggetto vState, quindi la cache resta
 // aggiornata da sola; si azzera solo ricaricando la pagina.
 const vStateCache = {};
+const VA_VEHICLE_DEFS = {
+  auto: { type: 'auto', prefix: 'auto_', label: 'Auto', icon: '🚗', possessive: 'La mia' },
+  scooter: { type: 'scooter', prefix: 'scooter_', label: 'Scooter', icon: '🛵', possessive: 'Il mio' },
+  moto: { type: 'moto', prefix: 'moto_', label: 'Moto', icon: '🏍️', possessive: 'La mia' },
+};
 async function vaBoot(type) {
-  currentVehicle = type === 'auto'
-    ? { type: 'auto', prefix: 'auto_', label: 'Auto', icon: '🚗' }
-    : { type: 'scooter', prefix: 'scooter_', label: 'Scooter', icon: '🛵' };
+  currentVehicle = VA_VEHICLE_DEFS[type];
   document.getElementById('va-icon').textContent = currentVehicle.icon;
   document.getElementById('va-brand-label').textContent = currentVehicle.label;
   document.getElementById('launcher-screen').style.display = 'none';
@@ -3264,7 +3308,7 @@ function vaRefreshCurrentTab() {
 }
 function vaRenderMasthead() {
   const nameFromSpecs = [vState.settings.marca, vState.settings.modello].filter(Boolean).join(' ');
-  document.getElementById('va-vehicle-name').textContent = nameFromSpecs || ('Il mio ' + currentVehicle.label.toLowerCase());
+  document.getElementById('va-vehicle-name').textContent = nameFromSpecs || (currentVehicle.possessive + ' ' + currentVehicle.label.toLowerCase());
   document.getElementById('va-vehicle-specs').textContent = vState.settings.targa || '';
 }
 function vaShowTab(tab) {
@@ -4780,18 +4824,15 @@ async function handleSignOut() {
 
 /* ---------------- Onboarding: quali mezzi possiedi (solo al primo signup) ---------------- */
 function showVehicleOnboarding() {
-  ['auto', 'gommone', 'scooter'].forEach(v => {
+  VEHICLE_TYPES_LIST.forEach(v => {
     document.getElementById('onboard-vehicle-' + v).checked = false;
   });
   document.getElementById('vehicle-onboarding-screen').style.display = 'flex';
 }
 async function finishVehicleOnboarding() {
-  const prefs = {
-    auto: document.getElementById('onboard-vehicle-auto').checked,
-    gommone: document.getElementById('onboard-vehicle-gommone').checked,
-    scooter: document.getElementById('onboard-vehicle-scooter').checked,
-  };
-  if (!prefs.auto && !prefs.gommone && !prefs.scooter) {
+  const prefs = {};
+  VEHICLE_TYPES_LIST.forEach(v => { prefs[v] = document.getElementById('onboard-vehicle-' + v).checked; });
+  if (!VEHICLE_TYPES_LIST.some(v => prefs[v])) {
     showToast('Seleziona almeno un mezzo per continuare');
     return;
   }
@@ -4802,7 +4843,7 @@ async function finishVehicleOnboarding() {
   document.getElementById('launcher-screen').style.display = 'flex';
 }
 async function skipVehicleOnboarding() {
-  launcherPrefs = { auto: true, gommone: true, scooter: true };
+  launcherPrefs = { auto: true, gommone: true, scooter: true, moto: true };
   await storageSet('launcherPrefs', JSON.stringify(launcherPrefs));
   document.getElementById('vehicle-onboarding-screen').style.display = 'none';
   renderLauncherCards();
