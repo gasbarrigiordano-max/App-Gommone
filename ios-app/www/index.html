@@ -7208,9 +7208,7 @@ function renderSpese() {
   Object.keys(groups).sort().reverse().forEach(key => {
     const d = new Date(key + '-01T00:00:00');
     const label = d.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
-    const monthTotal = state.activeFilter === 'carburante'
-      ? `<span class="month-group-total">${fmtEUR(groups[key].filter(e => !e.excluded).reduce((s, e) => s + e.amount, 0))}</span>`
-      : '';
+    const monthTotal = `<span class="month-group-total">${fmtEUR(groups[key].filter(e => !e.excluded).reduce((s, e) => s + e.amount, 0))}</span>`;
     html += `<div class="month-group-label"><span>${label}</span>${monthTotal}</div>`;
     groups[key].forEach(e => {
       const cat = CAT_MAP[e.category] || CAT_MAP.altro;
