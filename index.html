@@ -1466,7 +1466,12 @@
     <h2 id="va-part-modal-title">Registra cambio</h2>
     <input type="hidden" id="va-part-key">
     <input type="hidden" id="va-part-hist-id">
-    <div class="field"><label>Data</label><input type="date" id="va-part-form-date"></div>
+    <div class="field"><label>Data sostituzione</label><input type="date" id="va-part-form-date"></div>
+    <div class="field">
+      <label>Data acquisto (opzionale)</label>
+      <input type="date" id="va-part-form-purchase-date">
+      <div class="field-hint">Se hai comprato il ricambio prima di montarlo, indica qui quando l'hai acquistato.</div>
+    </div>
     <div class="field"><label>Km al momento del cambio</label><input type="number" id="va-part-form-km" inputmode="numeric" placeholder="es. 42000"></div>
     <div class="field"><label>Prezzo (€)</label><input type="number" id="va-part-form-price" inputmode="decimal" placeholder="es. 60"></div>
     <div class="field"><label>Note (opzionale)</label><input type="text" id="va-part-form-note" placeholder="es. officina"></div>
@@ -3841,6 +3846,7 @@ function vaOpenPartModal(key, label, histId) {
     const h = vState.parts[key].history.find(x => x.id === histId);
     document.getElementById('va-part-hist-id').value = h.id;
     document.getElementById('va-part-form-date').value = h.date || '';
+    document.getElementById('va-part-form-purchase-date').value = h.purchaseDate || '';
     document.getElementById('va-part-form-km').value = h.km ?? '';
     document.getElementById('va-part-form-price').value = h.price ?? '';
     document.getElementById('va-part-form-note').value = h.note || '';
@@ -3849,6 +3855,7 @@ function vaOpenPartModal(key, label, histId) {
   } else {
     document.getElementById('va-part-hist-id').value = '';
     document.getElementById('va-part-form-date').value = todayISO();
+    document.getElementById('va-part-form-purchase-date').value = '';
     document.getElementById('va-part-form-km').value = vState.settings.kmTotali || '';
     document.getElementById('va-part-form-price').value = '';
     document.getElementById('va-part-form-note').value = '';
@@ -3861,12 +3868,13 @@ async function vaSavePartChange() {
   const key = document.getElementById('va-part-key').value;
   const histId = document.getElementById('va-part-hist-id').value;
   const date = document.getElementById('va-part-form-date').value || todayISO();
+  const purchaseDate = document.getElementById('va-part-form-purchase-date').value || null;
   const kmVal = parseFloat(document.getElementById('va-part-form-km').value);
   const priceVal = parseFloat(document.getElementById('va-part-form-price').value);
   const note = document.getElementById('va-part-form-note').value.trim();
   const excluded = document.getElementById('va-part-form-excluded').checked;
   if (!vState.parts[key]) vState.parts[key] = { history: [] };
-  const data = { date, km: isNaN(kmVal) ? null : kmVal, price: isNaN(priceVal) ? null : priceVal, note, excluded };
+  const data = { date, purchaseDate, km: isNaN(kmVal) ? null : kmVal, price: isNaN(priceVal) ? null : priceVal, note, excluded };
   let entry;
   if (histId) { entry = vState.parts[key].history.find(x => x.id === histId); Object.assign(entry, data); }
   else { entry = { id: uid(), ...data }; vState.parts[key].history.push(entry); }
