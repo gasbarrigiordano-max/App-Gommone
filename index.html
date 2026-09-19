@@ -1199,6 +1199,79 @@
     </div>
   </main>
 
+  <main id="va-view-viaggio" hidden>
+    <div class="section-label" style="margin-top:0;">Pianifica un viaggio</div>
+    <div class="field">
+      <label>Luogo di partenza</label>
+      <input type="text" id="vg-from" placeholder="es. Roma">
+    </div>
+    <div class="field">
+      <label>Luogo di arrivo</label>
+      <input type="text" id="vg-to" placeholder="es. Milano">
+    </div>
+
+    <div class="btn-row btn-row-compact">
+      <button class="btn btn-primary" id="vg-mode-depart-btn" onclick="vgSetMode('depart')">Parto alle</button>
+      <button class="btn btn-ghost" id="vg-mode-arrive-btn" onclick="vgSetMode('arrive')">Voglio arrivare alle</button>
+    </div>
+    <div class="stat-row" style="margin-top:14px;">
+      <div class="field" style="margin-bottom:0;">
+        <label>Data</label>
+        <input type="date" id="vg-date">
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label id="vg-time-label">Ora di partenza</label>
+        <input type="time" id="vg-time">
+      </div>
+    </div>
+
+    <div class="field" style="margin-top:16px;">
+      <label>Prezzo carburante (€/L)</label>
+      <input type="number" id="vg-fuel-price" inputmode="decimal" step="0.001" placeholder="es. 1.750">
+    </div>
+    <div class="stat-row">
+      <div class="field" style="margin-bottom:0;">
+        <label>Cilindrata (cc)</label>
+        <input type="number" id="vg-cc" inputmode="numeric" placeholder="es. 1200" oninput="vgUpdateConsumoDefault()">
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label>Potenza (CV)</label>
+        <input type="number" id="vg-cv" inputmode="numeric" placeholder="es. 90" oninput="vgUpdateConsumoDefault()">
+      </div>
+    </div>
+    <div class="field-hint" style="margin-top:6px; margin-bottom:16px;">Precompilati dai dati del veicolo in Impostazioni — modificali per calcolare il viaggio con un altro mezzo.</div>
+    <div class="field">
+      <label style="display:flex; align-items:center; justify-content:space-between;">
+        <span>Consumo stimato (km/L)</span>
+        <span style="cursor:pointer; color:var(--brass); font-size:12px; font-weight:600;" onclick="vgResetConsumoEstimate()">↻ ricalcola</span>
+      </label>
+      <input type="number" id="vg-consumo" inputmode="decimal" step="0.1" placeholder="es. 16.5" oninput="vgConsumoDirty = true">
+      <div class="field-hint" id="vg-consumo-hint"></div>
+    </div>
+
+    <button class="btn btn-primary" id="vg-calc-btn" style="margin-top:6px;" onclick="vgCalcolaViaggio()">Calcola viaggio</button>
+
+    <div id="vg-result-card" style="display:none; margin-top:20px;">
+      <div class="section-label" style="margin-top:0;">Risultato</div>
+      <div class="stat-row">
+        <div class="stat-card"><div class="k">Distanza</div><div class="v" id="vg-result-distance">—</div></div>
+        <div class="stat-card"><div class="k">Durata stimata</div><div class="v" id="vg-result-duration">—</div></div>
+      </div>
+      <div class="stat-row" style="margin-top:10px;">
+        <div class="stat-card"><div class="k">Partenza</div><div class="v" id="vg-result-depart">—</div></div>
+        <div class="stat-card"><div class="k">Arrivo</div><div class="v" id="vg-result-arrive">—</div></div>
+      </div>
+      <div class="stat-row" style="margin-top:10px;">
+        <div class="stat-card"><div class="k">Costo carburante stimato</div><div class="v brass" id="vg-result-cost">—</div></div>
+      </div>
+      <div class="field-hint" id="vg-result-hint" style="margin-top:8px;"></div>
+      <button class="btn btn-ghost" style="margin-top:14px;" onclick="vgSalvaViaggio()">Salva questo viaggio</button>
+    </div>
+
+    <div class="section-label" style="margin-top:28px;">Viaggi salvati</div>
+    <div id="vg-saved-list"></div>
+  </main>
+
   <main id="va-view-impostazioni" hidden>
     <button class="back-link" onclick="vaShowTab('riepilogo')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
@@ -1222,6 +1295,17 @@
       <input type="number" id="va-set-km" inputmode="numeric" placeholder="es. 45000">
       <div class="field-hint">Da qui in poi si aggiornano da soli a ogni rifornimento registrato.</div>
     </div>
+    <div class="stat-row">
+      <div class="field" style="margin-bottom:0;">
+        <label>Cilindrata (cc)</label>
+        <input type="number" id="va-set-cc" inputmode="numeric" placeholder="es. 1200">
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label>Potenza (CV)</label>
+        <input type="number" id="va-set-cv" inputmode="numeric" placeholder="es. 90">
+      </div>
+    </div>
+    <div class="field-hint" style="margin-top:8px; margin-bottom:16px;">Usati come valori di partenza per la stima del consumo in Viaggio — modificabili anche lì per un mezzo diverso.</div>
     <button class="btn btn-primary" onclick="vaSaveSettingsForm()">Salva impostazioni</button>
 
     <div class="section-label">Dati</div>
@@ -1254,6 +1338,10 @@
     <button class="tab-btn" data-tab="statistiche" onclick="vaShowTab('statistiche')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 21V10M12 21V4M19 21v-7"/></svg>
       <span>Statistiche</span>
+    </button>
+    <button class="tab-btn" data-tab="viaggio" onclick="vaShowTab('viaggio')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 21s7-7.5 7-12a7 7 0 10-14 0c0 4.5 7 12 7 12z"/><circle cx="12" cy="9" r="2.3"/></svg>
+      <span>Viaggio</span>
     </button>
   </div>
 
@@ -3203,19 +3291,19 @@ function vaAllPartKeys() {
 
 let currentVehicle = null;
 let vState = {
-  settings: { marca: '', modello: '', targa: '', kmTotali: 0 },
-  expenses: [], refuels: [], insurances: [], revisioni: [], bollo: [], manutenzione: [], parts: {},
+  settings: { marca: '', modello: '', targa: '', kmTotali: 0, cilindrata: null, cavalli: null },
+  expenses: [], refuels: [], insurances: [], revisioni: [], bollo: [], manutenzione: [], parts: {}, plannedTrips: [],
 };
 let vaStatsYear = new Date().getFullYear();
 let vaRefuelYear = new Date().getFullYear();
 
 async function vaLoadAll() {
   const p = currentVehicle.prefix;
-  const keys = ['settings', 'expenses', 'refuels', 'insurances', 'revisioni', 'bollo', 'manutenzione', 'parts'];
+  const keys = ['settings', 'expenses', 'refuels', 'insurances', 'revisioni', 'bollo', 'manutenzione', 'parts', 'plannedTrips'];
   const results = await Promise.all(keys.map(key =>
     storageGet(p + key).catch(() => null)
   ));
-  const [settingsR, expensesR, refuelsR, insurancesR, revisioniR, bolloR, manutenzioneR, partsR] = results;
+  const [settingsR, expensesR, refuelsR, insurancesR, revisioniR, bolloR, manutenzioneR, partsR, plannedTripsR] = results;
 
   try { if (settingsR && settingsR.value) vState.settings = { ...vState.settings, ...JSON.parse(settingsR.value) }; } catch (e) { /* defaults */ }
   try { vState.expenses = (expensesR && expensesR.value) ? JSON.parse(expensesR.value) : []; } catch (e) { vState.expenses = []; }
@@ -3225,6 +3313,7 @@ async function vaLoadAll() {
   try { vState.bollo = (bolloR && bolloR.value) ? JSON.parse(bolloR.value) : []; } catch (e) { vState.bollo = []; }
   try { vState.manutenzione = (manutenzioneR && manutenzioneR.value) ? JSON.parse(manutenzioneR.value) : []; } catch (e) { vState.manutenzione = []; }
   try { vState.parts = (partsR && partsR.value) ? JSON.parse(partsR.value) : {}; } catch (e) { vState.parts = {}; }
+  try { vState.plannedTrips = (plannedTripsR && plannedTripsR.value) ? JSON.parse(plannedTripsR.value) : []; } catch (e) { vState.plannedTrips = []; }
   vaAllPartKeys().forEach(key => { if (!vState.parts[key]) vState.parts[key] = { history: [] }; });
 
   // Corregge eventuali spese bollo/revisione salvate come "documenti" prima del fix di categorizzazione
@@ -3276,6 +3365,200 @@ function vaCurrentInsurance() { return vaCurrentOf(vState.insurances); }
 function vaCurrentBollo() { return vaCurrentOf(vState.bollo); }
 function vaCurrentRevisione() { return vaCurrentOf(vState.revisioni); }
 
+/* ---- Viaggio: pianificazione con calcolo distanza/tempo/costo ----
+   Geocoding e instradamento tramite servizi gratuiti basati su OpenStreetMap
+   (Nominatim + OSRM pubblico): nessuna chiave API, ma serve connessione internet
+   nel momento in cui si calcola un viaggio. Il consumo km/L è sempre modificabile:
+   di default usa il dato reale calcolato dai rifornimenti se disponibile, altrimenti
+   una stima approssimativa da cilindrata e potenza. */
+let vgMode = 'depart';
+let vgConsumoDirty = false;
+let vgLastResult = null;
+function vgResetViaggioState() {
+  vgMode = 'depart';
+  vgConsumoDirty = false;
+  vgLastResult = null;
+  ['vg-from', 'vg-to', 'vg-date', 'vg-time', 'vg-fuel-price', 'vg-cc', 'vg-cv', 'vg-consumo'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('vg-result-card').style.display = 'none';
+  document.getElementById('vg-consumo-hint').textContent = '';
+}
+function vgSetMode(mode) {
+  vgMode = mode;
+  document.getElementById('vg-mode-depart-btn').classList.toggle('btn-primary', mode === 'depart');
+  document.getElementById('vg-mode-depart-btn').classList.toggle('btn-ghost', mode !== 'depart');
+  document.getElementById('vg-mode-arrive-btn').classList.toggle('btn-primary', mode === 'arrive');
+  document.getElementById('vg-mode-arrive-btn').classList.toggle('btn-ghost', mode !== 'arrive');
+  document.getElementById('vg-time-label').textContent = mode === 'depart' ? 'Ora di partenza' : 'Ora di arrivo desiderata';
+}
+function vgEstimateKmPerLiter(cc, cv) {
+  if (!cc || !cv || cc <= 0 || cv <= 0) return null;
+  // Stima approssimativa (consumo misto) da cilindrata e potenza: non un dato reale,
+  // solo un punto di partenza plausibile — l'utente può sempre correggerlo a mano.
+  const l100km = 3 + (cc / 1000) * 1.5 + (cv / 100) * 1.0;
+  return l100km > 0 ? 100 / l100km : null;
+}
+function vgUpdateConsumoDefault() {
+  if (vgConsumoDirty) return;
+  vgFillConsumoDefault();
+}
+function vgFillConsumoDefault() {
+  const cc = parseFloat(document.getElementById('vg-cc').value);
+  const cv = parseFloat(document.getElementById('vg-cv').value);
+  const hint = document.getElementById('vg-consumo-hint');
+  const realConsumo = vaComputeKmPerLitro();
+  if (realConsumo) {
+    document.getElementById('vg-consumo').value = realConsumo.toFixed(1);
+    hint.textContent = 'Calcolato dai tuoi rifornimenti reali di questo veicolo. Modificabile.';
+  } else {
+    const est = vgEstimateKmPerLiter(cc, cv);
+    if (est) {
+      document.getElementById('vg-consumo').value = est.toFixed(1);
+      hint.textContent = 'Stima approssimativa da cilindrata e potenza, non un dato reale. Modificabile.';
+    } else {
+      document.getElementById('vg-consumo').value = '';
+      hint.textContent = 'Inserisci cilindrata e potenza per una stima, oppure il consumo che conosci.';
+    }
+  }
+}
+function vgResetConsumoEstimate() {
+  vgConsumoDirty = false;
+  vgFillConsumoDefault();
+}
+function vgRenderViaggioTab() {
+  vgSetMode(vgMode);
+  if (!document.getElementById('vg-date').value) document.getElementById('vg-date').value = todayISO();
+  if (!document.getElementById('vg-cc').value && vState.settings.cilindrata) document.getElementById('vg-cc').value = vState.settings.cilindrata;
+  if (!document.getElementById('vg-cv').value && vState.settings.cavalli) document.getElementById('vg-cv').value = vState.settings.cavalli;
+  if (!document.getElementById('vg-fuel-price').value) {
+    const lastRefuel = [...vState.refuels].sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+    if (lastRefuel && lastRefuel.pricePerLitro > 0) document.getElementById('vg-fuel-price').value = lastRefuel.pricePerLitro;
+  }
+  if (!vgConsumoDirty) vgFillConsumoDefault();
+  vgRenderSavedTrips();
+}
+function vgFmtDurationMin(min) {
+  const totalMin = Math.round(min);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h > 0 ? `${h} h ${m} min` : `${m} min`;
+}
+async function vgGeocode(query) {
+  const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(query);
+  let res;
+  try { res = await fetch(url); } catch (e) { throw new Error('Connessione assente: impossibile cercare "' + query + '"'); }
+  if (!res.ok) throw new Error('Ricerca del luogo fallita: ' + query);
+  const data = await res.json();
+  if (!data.length) throw new Error('Luogo non trovato: ' + query);
+  return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon), label: data[0].display_name };
+}
+async function vgRoute(fromPoint, toPoint) {
+  const url = `https://router.project-osrm.org/route/v1/driving/${fromPoint.lon},${fromPoint.lat};${toPoint.lon},${toPoint.lat}?overview=false`;
+  let res;
+  try { res = await fetch(url); } catch (e) { throw new Error('Connessione assente: impossibile calcolare il percorso'); }
+  if (!res.ok) throw new Error('Calcolo del percorso fallito');
+  const data = await res.json();
+  if (data.code !== 'Ok' || !data.routes || !data.routes.length) throw new Error('Nessun percorso trovato tra questi due luoghi');
+  const route = data.routes[0];
+  return { distanceKm: route.distance / 1000, durationMin: route.duration / 60 };
+}
+async function vgCalcolaViaggio() {
+  const from = document.getElementById('vg-from').value.trim();
+  const to = document.getElementById('vg-to').value.trim();
+  if (!from || !to) { showToast('Inserisci luogo di partenza e di arrivo'); return; }
+  const date = document.getElementById('vg-date').value || todayISO();
+  const time = document.getElementById('vg-time').value;
+  if (!time) { showToast(vgMode === 'depart' ? 'Inserisci l\'ora di partenza' : 'Inserisci l\'ora di arrivo desiderata'); return; }
+  const fuelPrice = parseFloat(document.getElementById('vg-fuel-price').value) || 0;
+  const cc = parseFloat(document.getElementById('vg-cc').value) || null;
+  const cv = parseFloat(document.getElementById('vg-cv').value) || null;
+  let consumo = parseFloat(document.getElementById('vg-consumo').value);
+  if (!(consumo > 0)) consumo = vgEstimateKmPerLiter(cc, cv);
+  if (!(consumo > 0)) { showToast('Inserisci un consumo valido, oppure cilindrata e potenza'); return; }
+
+  const btn = document.getElementById('vg-calc-btn');
+  btn.disabled = true;
+  btn.textContent = 'Calcolo in corso…';
+  document.getElementById('vg-result-card').style.display = 'none';
+  try {
+    const [fromPoint, toPoint] = await Promise.all([vgGeocode(from), vgGeocode(to)]);
+    const route = await vgRoute(fromPoint, toPoint);
+
+    const chosen = new Date(date + 'T' + time + ':00');
+    let departAt, arriveAt;
+    if (vgMode === 'depart') {
+      departAt = chosen;
+      arriveAt = new Date(chosen.getTime() + route.durationMin * 60000);
+    } else {
+      arriveAt = chosen;
+      departAt = new Date(chosen.getTime() - route.durationMin * 60000);
+    }
+
+    const litersNeeded = route.distanceKm / consumo;
+    const cost = litersNeeded * fuelPrice;
+
+    vgLastResult = {
+      from, to, fromLabel: fromPoint.label, toLabel: toPoint.label,
+      distanceKm: route.distanceKm, durationMin: route.durationMin,
+      mode: vgMode, date, time, fuelPrice, cc, cv, consumo,
+      departAt: departAt.toISOString(), arriveAt: arriveAt.toISOString(),
+      cost,
+    };
+    vgRenderResult();
+  } catch (e) {
+    showToast(e.message || 'Errore nel calcolo del viaggio');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Calcola viaggio';
+  }
+}
+function vgRenderResult() {
+  const r = vgLastResult;
+  if (!r) return;
+  document.getElementById('vg-result-card').style.display = 'block';
+  document.getElementById('vg-result-distance').textContent = r.distanceKm.toFixed(0) + ' km';
+  document.getElementById('vg-result-duration').textContent = vgFmtDurationMin(r.durationMin);
+  document.getElementById('vg-result-depart').textContent = fmtTimeOfDay(r.departAt) + (r.mode === 'arrive' ? ' (calcolata)' : '');
+  document.getElementById('vg-result-arrive').textContent = fmtTimeOfDay(r.arriveAt) + (r.mode === 'depart' ? ' (stimato)' : '');
+  document.getElementById('vg-result-cost').textContent = r.fuelPrice > 0 ? fmtEUR(r.cost) : 'imposta il prezzo del carburante';
+  document.getElementById('vg-result-hint').textContent = `${r.fromLabel} → ${r.toLabel} · consumo usato: ${r.consumo.toFixed(1)} km/L`;
+}
+async function vgSalvaViaggio() {
+  if (!vgLastResult) return;
+  const entry = { id: uid(), ...vgLastResult, createdAt: new Date().toISOString() };
+  vState.plannedTrips.unshift(entry);
+  await vaSave('plannedTrips', vState.plannedTrips);
+  showToast('Viaggio salvato');
+  vgRenderSavedTrips();
+}
+function vgRenderSavedTrips() {
+  const list = document.getElementById('vg-saved-list');
+  if (!vState.plannedTrips.length) {
+    list.innerHTML = `<div class="field-hint">I viaggi che salvi compariranno qui.</div>`;
+    return;
+  }
+  list.innerHTML = vState.plannedTrips.map(t => `
+    <div class="activity-item" style="cursor:pointer" onclick="vgDeleteSavedTrip('${t.id}')">
+      <div class="cat-badge">🧭</div>
+      <div class="activity-info">
+        <div class="activity-title">${escapeHtml(t.from)} → ${escapeHtml(t.to)}</div>
+        <div class="activity-sub">${fmtDate(t.date)} · ${t.distanceKm.toFixed(0)} km · parte ${fmtTimeOfDay(t.departAt)}, arriva ${fmtTimeOfDay(t.arriveAt)}</div>
+      </div>
+      <div class="activity-amount trip">${t.fuelPrice > 0 ? fmtEUR(t.cost) : '—'}</div>
+    </div>`).join('');
+}
+function vgDeleteSavedTrip(id) {
+  const t = vState.plannedTrips.find(x => x.id === id);
+  if (!t) return;
+  showConfirm('Eliminare questo viaggio salvato?', 'Verrà rimosso dall\'elenco dei viaggi pianificati.', async () => {
+    vState.plannedTrips = vState.plannedTrips.filter(x => x.id !== id);
+    await vaSave('plannedTrips', vState.plannedTrips);
+    showToast('Viaggio eliminato');
+    vgRenderSavedTrips();
+  });
+}
+
 // Una volta caricati i dati di un veicolo in questa sessione, restano qui: rientrando nella
 // stessa sezione (es. Auto -> Launcher -> Auto) si riusano invece di rifare 8 letture di rete.
 // Le funzioni di salvataggio scrivono sullo stesso oggetto vState, quindi la cache resta
@@ -3288,6 +3571,7 @@ const VA_VEHICLE_DEFS = {
 };
 async function vaBoot(type) {
   currentVehicle = VA_VEHICLE_DEFS[type];
+  vgResetViaggioState();
   document.getElementById('va-icon').textContent = currentVehicle.icon;
   document.getElementById('va-brand-label').textContent = currentVehicle.label;
   document.getElementById('launcher-screen').style.display = 'none';
@@ -3300,7 +3584,7 @@ async function vaBoot(type) {
     return;
   }
 
-  vState = { settings: { marca: '', modello: '', targa: '', kmTotali: 0 }, expenses: [], refuels: [], insurances: [], revisioni: [], bollo: [], manutenzione: [], parts: {} };
+  vState = { settings: { marca: '', modello: '', targa: '', kmTotali: 0, cilindrata: null, cavalli: null }, expenses: [], refuels: [], insurances: [], revisioni: [], bollo: [], manutenzione: [], parts: {}, plannedTrips: [] };
   vaRenderMasthead();
   vaShowTab('riepilogo');
   await vaLoadAll();
@@ -3318,7 +3602,7 @@ function vaRenderMasthead() {
   document.getElementById('va-vehicle-specs').textContent = vState.settings.targa || '';
 }
 function vaShowTab(tab) {
-  ['riepilogo', 'spese', 'rifornimenti', 'veicolo', 'manutenzione', 'statistiche', 'impostazioni'].forEach(t => {
+  ['riepilogo', 'spese', 'rifornimenti', 'veicolo', 'manutenzione', 'statistiche', 'viaggio', 'impostazioni'].forEach(t => {
     document.getElementById('va-view-' + t).hidden = t !== tab;
   });
   document.getElementById('va-import-view').hidden = true;
@@ -3330,6 +3614,7 @@ function vaShowTab(tab) {
   if (tab === 'veicolo') vaRenderVeicolo();
   if (tab === 'manutenzione') { vaRenderStandardParts(); vaRenderManutenzioneList(); }
   if (tab === 'statistiche') vaRenderStatistiche();
+  if (tab === 'viaggio') vgRenderViaggioTab();
   if (tab === 'impostazioni') vaRenderImpostazioni();
 }
 
@@ -4468,12 +4753,16 @@ function vaRenderImpostazioni() {
   document.getElementById('va-set-modello').value = vState.settings.modello || '';
   document.getElementById('va-set-targa').value = vState.settings.targa || '';
   document.getElementById('va-set-km').value = vState.settings.kmTotali || '';
+  document.getElementById('va-set-cc').value = vState.settings.cilindrata || '';
+  document.getElementById('va-set-cv').value = vState.settings.cavalli || '';
 }
 async function vaSaveSettingsForm() {
   vState.settings.marca = document.getElementById('va-set-marca').value.trim();
   vState.settings.modello = document.getElementById('va-set-modello').value.trim();
   vState.settings.targa = document.getElementById('va-set-targa').value.trim().toUpperCase();
   vState.settings.kmTotali = parseFloat(document.getElementById('va-set-km').value) || 0;
+  vState.settings.cilindrata = parseFloat(document.getElementById('va-set-cc').value) || null;
+  vState.settings.cavalli = parseFloat(document.getElementById('va-set-cv').value) || null;
   await vaSave('settings', vState.settings);
   vaRenderMasthead();
   showToast('Impostazioni salvate');
@@ -4507,6 +4796,7 @@ function vaHandleImportBackupFile(event) {
         vState.manutenzione = data.manutenzione || [];
         vState.parts = data.parts || {};
         vaAllPartKeys().forEach(key => { if (!vState.parts[key]) vState.parts[key] = { history: [] }; });
+        vState.plannedTrips = data.plannedTrips || [];
 
         await Promise.all([
           vaSave('settings', vState.settings),
@@ -4517,6 +4807,7 @@ function vaHandleImportBackupFile(event) {
           vaSave('bollo', vState.bollo),
           vaSave('manutenzione', vState.manutenzione),
           vaSave('parts', vState.parts),
+          vaSave('plannedTrips', vState.plannedTrips),
         ]);
 
         showToast('Backup importato');
@@ -4528,7 +4819,7 @@ function vaHandleImportBackupFile(event) {
   reader.readAsText(file);
 }
 function vaExportData() {
-  const data = { vehicle: currentVehicle.type, settings: vState.settings, expenses: vState.expenses, refuels: vState.refuels, insurances: vState.insurances, revisioni: vState.revisioni, bollo: vState.bollo, manutenzione: vState.manutenzione, parts: vState.parts, exportedAt: new Date().toISOString() };
+  const data = { vehicle: currentVehicle.type, settings: vState.settings, expenses: vState.expenses, refuels: vState.refuels, insurances: vState.insurances, revisioni: vState.revisioni, bollo: vState.bollo, manutenzione: vState.manutenzione, parts: vState.parts, plannedTrips: vState.plannedTrips, exportedAt: new Date().toISOString() };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
