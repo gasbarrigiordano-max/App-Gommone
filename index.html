@@ -385,6 +385,18 @@
     -webkit-min-logical-width:0; /* iOS Safari: senza questo il controllo nativo ignora width:100% e sfonda il contenitore */
   }
   .field-hint{font-size:11px; color:var(--ink-faint); margin-top:6px; line-height:1.4;}
+  .vg-suggestions{
+    position:absolute; top:100%; left:0; right:0; z-index:20; margin-top:2px;
+    background:var(--navy-panel); border:1px solid var(--navy-line);
+    border-radius:10px; max-height:220px; overflow-y:auto;
+    box-shadow:0 8px 20px rgba(0,0,0,0.4);
+  }
+  .vg-suggestion-item{
+    padding:10px 13px; font-size:12.5px; line-height:1.4; color:var(--ink);
+    cursor:pointer; border-bottom:1px solid var(--navy-line);
+  }
+  .vg-suggestion-item:last-child{border-bottom:none;}
+  .vg-suggestion-item:hover, .vg-suggestion-item:active{background:var(--navy-panel-2);}
   .btn{
     width:100%; padding:13px; border-radius:10px; border:none; cursor:pointer;
     font-family:'Inter',sans-serif; font-weight:600; font-size:14px;
@@ -1201,13 +1213,15 @@
 
   <main id="va-view-viaggio" hidden>
     <div class="section-label" style="margin-top:0;">Pianifica un viaggio</div>
-    <div class="field">
+    <div class="field" style="position:relative;">
       <label>Luogo di partenza</label>
-      <input type="text" id="vg-from" placeholder="es. Roma">
+      <input type="text" id="vg-from" placeholder="es. Via Roma 10, Milano" autocomplete="off" oninput="vgOnPlaceInput('from')" onblur="vgHideSuggestionsDelayed('from')">
+      <div class="vg-suggestions" id="vg-from-suggestions" style="display:none;"></div>
     </div>
-    <div class="field">
+    <div class="field" style="position:relative;">
       <label>Luogo di arrivo</label>
-      <input type="text" id="vg-to" placeholder="es. Milano">
+      <input type="text" id="vg-to" placeholder="es. Via Dante 5, Roma" autocomplete="off" oninput="vgOnPlaceInput('to')" onblur="vgHideSuggestionsDelayed('to')">
+      <div class="vg-suggestions" id="vg-to-suggestions" style="display:none;"></div>
     </div>
 
     <div class="btn-row btn-row-compact">
@@ -3371,15 +3385,64 @@ const ORS_API_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjRlNmY
 let vgMode = 'depart';
 let vgConsumoDirty = false;
 let vgLastResults = null;
+let vgSelectedPlace = { from: null, to: null };
+let vgSuggestTimers = { from: null, to: null };
 function vgResetViaggioState() {
   vgMode = 'depart';
   vgConsumoDirty = false;
   vgLastResults = null;
+  vgSelectedPlace = { from: null, to: null };
+  clearTimeout(vgSuggestTimers.from);
+  clearTimeout(vgSuggestTimers.to);
   ['vg-from', 'vg-to', 'vg-date', 'vg-time', 'vg-fuel-price', 'vg-cc', 'vg-cv', 'vg-consumo'].forEach(id => {
     document.getElementById(id).value = '';
   });
+  ['from', 'to'].forEach(field => {
+    const box = document.getElementById('vg-' + field + '-suggestions');
+    box.style.display = 'none';
+    box.innerHTML = '';
+  });
   document.getElementById('vg-result-card').style.display = 'none';
   document.getElementById('vg-consumo-hint').textContent = '';
+}
+function vgOnPlaceInput(field) {
+  vgSelectedPlace[field] = null;
+  clearTimeout(vgSuggestTimers[field]);
+  const query = document.getElementById('vg-' + field).value.trim();
+  const box = document.getElementById('vg-' + field + '-suggestions');
+  if (query.length < 3) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  vgSuggestTimers[field] = setTimeout(() => vgFetchSuggestions(field, query), 400);
+}
+async function vgFetchSuggestions(field, query) {
+  const box = document.getElementById('vg-' + field + '-suggestions');
+  let results = [];
+  try {
+    const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=5&q=' + encodeURIComponent(query);
+    const res = await fetch(url);
+    if (res.ok) results = await res.json();
+  } catch (e) { results = []; }
+  // Se il campo è cambiato ulteriormente mentre la richiesta era in corso, ignora questa risposta.
+  if (document.getElementById('vg-' + field).value.trim() !== query) return;
+  if (!results.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.dataset.results = JSON.stringify(results.map(r => ({ lat: r.lat, lon: r.lon, label: r.display_name })));
+  box.innerHTML = results.map((r, i) => `<div class="vg-suggestion-item" onmousedown="vgPickSuggestion('${field}', ${i})">${escapeHtml(r.display_name)}</div>`).join('');
+  box.style.display = 'block';
+}
+function vgPickSuggestion(field, index) {
+  const box = document.getElementById('vg-' + field + '-suggestions');
+  const results = JSON.parse(box.dataset.results || '[]');
+  const picked = results[index];
+  if (!picked) return;
+  document.getElementById('vg-' + field).value = picked.label;
+  vgSelectedPlace[field] = { lat: parseFloat(picked.lat), lon: parseFloat(picked.lon), label: picked.label };
+  box.style.display = 'none';
+  box.innerHTML = '';
+}
+function vgHideSuggestionsDelayed(field) {
+  setTimeout(() => {
+    const box = document.getElementById('vg-' + field + '-suggestions');
+    box.style.display = 'none';
+  }, 200);
 }
 function vgSetMode(mode) {
   vgMode = mode;
@@ -3505,7 +3568,10 @@ async function vgCalcolaViaggio() {
   btn.textContent = 'Calcolo in corso…';
   document.getElementById('vg-result-card').style.display = 'none';
   try {
-    const [fromPoint, toPoint] = await Promise.all([vgGeocode(from), vgGeocode(to)]);
+    const [fromPoint, toPoint] = await Promise.all([
+      vgSelectedPlace.from || vgGeocode(from),
+      vgSelectedPlace.to || vgGeocode(to),
+    ]);
 
     let routes;
     if (orsKey) {
