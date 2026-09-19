@@ -3544,9 +3544,13 @@ async function vgRoute(fromPoint, toPoint) {
   const route = data.routes[0];
   return { distanceKm: route.distance / 1000, durationMin: route.duration / 60, tollKm: null, tollCost: null };
 }
-// Prezzo medio autostrada in Italia per un'auto (classe A): una stima, non il pedaggio
-// reale — che dipende dal tratto, dal casello e dal tipo di veicolo. OpenRouteService non
-// fornisce importi in euro, solo quanti km del percorso sono su strade a pedaggio.
+// Tariffa media autostrada in Italia SOLO per la classe A (auto): fissa, non varia in base
+// al veicolo inserito. Verificata sulla tariffa ufficiale di classe A (0,07-0,09 €/km in
+// pianura, fino a 0,14 €/km in montagna, IVA inclusa) e confrontata con il costo reale di 5
+// tratte autostradali pubblicate nel 2026 (Milano-Bologna, Milano-Venezia, Bologna-Firenze,
+// Firenze-Roma, Roma-Napoli), che danno una media di ~0,08 €/km. Resta comunque una stima:
+// OpenRouteService non fornisce importi in euro, solo quanti km del percorso sono a pedaggio,
+// e il prezzo reale varia per tratta/casello/gestore.
 const AVG_TOLL_EUR_PER_KM = 0.08;
 async function vgRouteOrs(fromPoint, toPoint, apiKey, avoidTolls) {
   const body = { coordinates: [[fromPoint.lon, fromPoint.lat], [toPoint.lon, toPoint.lat]], extra_info: ['tollways'] };
@@ -3672,7 +3676,7 @@ function vgRenderResult() {
       <div class="stat-row" style="margin-top:10px;">
         <div class="stat-card"><div class="k">Costo totale stimato</div><div class="v brass">${totalText}</div></div>
       </div>
-      ${r.tollKm > 0.5 ? `<div class="field-hint" style="margin-top:6px;">Pedaggio stimato su ${r.tollKm.toFixed(0)} km di autostrada, a ${AVG_TOLL_EUR_PER_KM.toFixed(2)} €/km di media indicativa — non il prezzo reale del casello, che varia per tratta e veicolo.</div>` : ''}
+      ${r.tollKm > 0.5 ? `<div class="field-hint" style="margin-top:6px;">Pedaggio stimato su ${r.tollKm.toFixed(0)} km di autostrada, a ${AVG_TOLL_EUR_PER_KM.toFixed(2)} €/km — tariffa media italiana per auto (classe A), non il prezzo reale del casello che varia per tratta e gestore.</div>` : ''}
       <button class="btn btn-ghost" style="margin-top:12px;" onclick="vgSalvaViaggio(${i})">Salva questo percorso</button>
     </div>`;
   }).join('');
