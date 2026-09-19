@@ -3400,11 +3400,18 @@ function vgUpdateConsumoDefault() {
   if (vgConsumoDirty) return;
   vgFillConsumoDefault();
 }
+function vgCcCvMatchOwnVehicle(cc, cv) {
+  const ownCc = vState.settings.cilindrata || null;
+  const ownCv = vState.settings.cavalli || null;
+  return (isNaN(cc) ? null : cc) === ownCc && (isNaN(cv) ? null : cv) === ownCv;
+}
 function vgFillConsumoDefault() {
   const cc = parseFloat(document.getElementById('vg-cc').value);
   const cv = parseFloat(document.getElementById('vg-cv').value);
   const hint = document.getElementById('vg-consumo-hint');
-  const realConsumo = vaComputeKmPerLitro();
+  // Il consumo reale calcolato dai rifornimenti vale solo per il TUO veicolo: se cilindrata/potenza
+  // sono state cambiate per simulare un mezzo diverso, va ignorato a favore della stima da cc/cv.
+  const realConsumo = vgCcCvMatchOwnVehicle(cc, cv) ? vaComputeKmPerLitro() : null;
   if (realConsumo) {
     document.getElementById('vg-consumo').value = realConsumo.toFixed(1);
     hint.textContent = 'Calcolato dai tuoi rifornimenti reali di questo veicolo. Modificabile.';
