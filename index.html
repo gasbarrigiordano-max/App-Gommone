@@ -3528,10 +3528,14 @@ async function vgRoute(fromPoint, toPoint) {
   const data = await res.json();
   if (data.code !== 'Ok' || !data.routes || !data.routes.length) throw new Error('Nessun percorso trovato tra questi due luoghi');
   const route = data.routes[0];
-  return { distanceKm: route.distance / 1000, durationMin: route.duration / 60 };
+  return { distanceKm: route.distance / 1000, durationMin: route.duration / 60, tollKm: null, tollCost: null };
 }
+// Prezzo medio autostrada in Italia per un'auto (classe A): una stima, non il pedaggio
+// reale — che dipende dal tratto, dal casello e dal tipo di veicolo. OpenRouteService non
+// fornisce importi in euro, solo quanti km del percorso sono su strade a pedaggio.
+const AVG_TOLL_EUR_PER_KM = 0.08;
 async function vgRouteOrs(fromPoint, toPoint, apiKey, avoidTolls) {
-  const body = { coordinates: [[fromPoint.lon, fromPoint.lat], [toPoint.lon, toPoint.lat]] };
+  const body = { coordinates: [[fromPoint.lon, fromPoint.lat], [toPoint.lon, toPoint.lat]], extra_info: ['tollways'] };
   if (avoidTolls) body.options = { avoid_features: ['tollways'] };
   let res;
   try {
@@ -3541,12 +3545,18 @@ async function vgRouteOrs(fromPoint, toPoint, apiKey, avoidTolls) {
       body: JSON.stringify(body),
     });
   } catch (e) { throw new Error('Connessione assente: impossibile calcolare il percorso'); }
-  if (res.status === 401 || res.status === 403) throw new Error('Chiave OpenRouteService non valida: controllala in Impostazioni');
+  if (res.status === 401 || res.status === 403) throw new Error('Calcolo del percorso non disponibile al momento (chiave OpenRouteService non valida)');
   if (!res.ok) throw new Error('Calcolo del percorso fallito (OpenRouteService)');
   const data = await res.json();
   if (!data.routes || !data.routes.length) throw new Error('Nessun percorso trovato tra questi due luoghi');
-  const summary = data.routes[0].summary;
-  return { distanceKm: summary.distance / 1000, durationMin: summary.duration / 60 };
+  const route = data.routes[0];
+  const tollSummary = route.extras && route.extras.tollways && route.extras.tollways.summary || [];
+  const tollMeters = tollSummary.filter(s => s.value === 1).reduce((s, x) => s + x.distance, 0);
+  const tollKm = tollMeters / 1000;
+  return {
+    distanceKm: route.summary.distance / 1000, durationMin: route.summary.duration / 60,
+    tollKm, tollCost: tollKm * AVG_TOLL_EUR_PER_KM,
+  };
 }
 async function vgCalcolaViaggio() {
   const from = document.getElementById('vg-from').value.trim();
@@ -3599,13 +3609,15 @@ async function vgCalcolaViaggio() {
         departAt = new Date(chosen.getTime() - route.durationMin * 60000);
       }
       const litersNeeded = route.distanceKm / consumo;
-      const cost = litersNeeded * fuelPrice;
+      const fuelCost = litersNeeded * fuelPrice;
+      const tollCost = route.tollCost || 0;
+      const cost = fuelCost + tollCost;
       return {
         from, to, fromLabel: fromPoint.label, toLabel: toPoint.label,
         distanceKm: route.distanceKm, durationMin: route.durationMin, routeLabel: route.routeLabel,
         mode: vgMode, date, time, fuelPrice, cc, cv, consumo,
         departAt: departAt.toISOString(), arriveAt: arriveAt.toISOString(),
-        cost,
+        tollKm: route.tollKm ?? null, fuelCost, tollCost: route.tollKm != null ? tollCost : null, cost,
       };
     });
     vgRenderResult();
@@ -3621,7 +3633,11 @@ function vgRenderResult() {
   if (!results || !results.length) return;
   document.getElementById('vg-result-card').style.display = 'block';
   document.getElementById('vg-result-hint').textContent = `${results[0].fromLabel} → ${results[0].toLabel} · consumo usato: ${results[0].consumo.toFixed(1)} km/L`;
-  document.getElementById('vg-results-container').innerHTML = results.map((r, i) => `
+  document.getElementById('vg-results-container').innerHTML = results.map((r, i) => {
+    const fuelCostText = r.fuelPrice > 0 ? fmtEUR(r.fuelCost) : 'imposta il prezzo del carburante';
+    const tollCostText = r.tollKm == null ? 'non disponibile' : (r.tollKm < 0.5 ? 'nessuno' : fmtEUR(r.tollCost));
+    const totalText = r.fuelPrice > 0 ? fmtEUR(r.cost) : fuelCostText;
+    return `
     <div style="${i < results.length - 1 ? 'padding-bottom:18px; margin-bottom:18px; border-bottom:1px solid var(--navy-line);' : ''}">
       ${r.routeLabel ? `<div style="font-family:'Oswald',sans-serif; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--brass); margin-bottom:8px;">${r.routeLabel}</div>` : ''}
       <div class="stat-row">
@@ -3633,10 +3649,16 @@ function vgRenderResult() {
         <div class="stat-card"><div class="k">Arrivo</div><div class="v">${fmtTimeOfDay(r.arriveAt)}${r.mode === 'depart' ? ' (stimato)' : ''}</div></div>
       </div>
       <div class="stat-row" style="margin-top:10px;">
-        <div class="stat-card"><div class="k">Costo carburante stimato</div><div class="v brass">${r.fuelPrice > 0 ? fmtEUR(r.cost) : 'imposta il prezzo del carburante'}</div></div>
+        <div class="stat-card"><div class="k">Carburante</div><div class="v">${fuelCostText}</div></div>
+        <div class="stat-card"><div class="k">Pedaggio stimato</div><div class="v">${tollCostText}</div></div>
       </div>
+      <div class="stat-row" style="margin-top:10px;">
+        <div class="stat-card"><div class="k">Costo totale stimato</div><div class="v brass">${totalText}</div></div>
+      </div>
+      ${r.tollKm > 0.5 ? `<div class="field-hint" style="margin-top:6px;">Pedaggio stimato su ${r.tollKm.toFixed(0)} km di autostrada, a ${AVG_TOLL_EUR_PER_KM.toFixed(2)} €/km di media indicativa — non il prezzo reale del casello, che varia per tratta e veicolo.</div>` : ''}
       <button class="btn btn-ghost" style="margin-top:12px;" onclick="vgSalvaViaggio(${i})">Salva questo percorso</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 async function vgSalvaViaggio(index) {
   if (!vgLastResults || !vgLastResults[index]) return;
