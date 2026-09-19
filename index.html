@@ -1295,11 +1295,6 @@
       </div>
     </div>
     <div class="field-hint" style="margin-top:8px; margin-bottom:16px;">Usati come valori di partenza per la stima del consumo in Viaggio — modificabili anche lì per un mezzo diverso.</div>
-    <div class="field">
-      <label>Chiave API OpenRouteService (opzionale)</label>
-      <input type="text" id="va-set-ors-key" placeholder="incolla qui la tua chiave">
-      <div class="field-hint">Serve solo per il confronto percorso con/senza pedaggio in Viaggio. Gratuita: registrati su openrouteservice.org/dev/#/signup (solo email, senza carta), poi crea un token per l'API "Directions" e incollalo qui. Senza chiave, Viaggio calcola comunque un unico percorso stimato.</div>
-    </div>
     <button class="btn btn-primary" onclick="vaSaveSettingsForm()">Salva impostazioni</button>
 
     <div class="section-label">Dati</div>
@@ -3285,7 +3280,7 @@ function vaAllPartKeys() {
 
 let currentVehicle = null;
 let vState = {
-  settings: { marca: '', modello: '', targa: '', kmTotali: 0, cilindrata: null, cavalli: null, orsApiKey: '' },
+  settings: { marca: '', modello: '', targa: '', kmTotali: 0, cilindrata: null, cavalli: null },
   expenses: [], refuels: [], insurances: [], revisioni: [], bollo: [], manutenzione: [], parts: {}, plannedTrips: [],
 };
 let vaStatsYear = new Date().getFullYear();
@@ -3361,14 +3356,18 @@ function vaCurrentRevisione() { return vaCurrentOf(vState.revisioni); }
 
 /* ---- Viaggio: pianificazione con calcolo distanza/tempo/costo ----
    Geocoding tramite Nominatim (OpenStreetMap, gratuito, nessuna chiave). Per
-   l'instradamento: se in Impostazioni è presente una chiave OpenRouteService
-   (gratuita, richiede registrazione), calcola DUE percorsi — più veloce e senza
-   pedaggio — usando la loro opzione avoid_features:["tollways"]; altrimenti usa
-   OSRM pubblico (gratuito, nessuna chiave) per un unico percorso stimato, senza
-   poter distinguere i pedaggi. Serve comunque connessione internet al momento del
+   l'instradamento usa OpenRouteService con la chiave gratuita sotto: calcola DUE
+   percorsi — più veloce e senza pedaggio — con la loro opzione avoid_features:
+   ["tollways"]. La chiave è condivisa da tutti gli utenti dell'app (quota gratuita
+   2000 richieste/giorno in totale): se un giorno si esaurisse, o la chiave smette
+   di funzionare, si può sempre rigenerarla gratis su openrouteservice.org e
+   sostituirla qui sotto. Se ORS_API_KEY è vuota, si ricade su OSRM pubblico
+   (gratuito, nessuna chiave) per un unico percorso stimato, senza poter
+   distinguere i pedaggi. Serve comunque connessione internet al momento del
    calcolo. Il consumo km/L è sempre modificabile: di default usa il dato reale
    calcolato dai rifornimenti se disponibile, altrimenti una stima approssimativa
    da cilindrata e potenza. */
+const ORS_API_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjRlNmY2YjhhODRjYTRhODFiMDdkN2RiMGZkMjYzYzk3IiwiaCI6Im11cm11cjY0In0=';
 let vgMode = 'depart';
 let vgConsumoDirty = false;
 let vgLastResults = null;
@@ -3492,7 +3491,7 @@ async function vgCalcolaViaggio() {
   let consumo = parseFloat(document.getElementById('vg-consumo').value);
   if (!(consumo > 0)) consumo = vgEstimateKmPerLiter(cc, cv);
   if (!(consumo > 0)) { showToast('Inserisci un consumo valido, oppure cilindrata e potenza'); return; }
-  const orsKey = (vState.settings.orsApiKey || '').trim();
+  const orsKey = ORS_API_KEY;
 
   const btn = document.getElementById('vg-calc-btn');
   btn.disabled = true;
@@ -3626,7 +3625,7 @@ async function vaBoot(type) {
     return;
   }
 
-  vState = { settings: { marca: '', modello: '', targa: '', kmTotali: 0, cilindrata: null, cavalli: null, orsApiKey: '' }, expenses: [], refuels: [], insurances: [], revisioni: [], bollo: [], manutenzione: [], parts: {}, plannedTrips: [] };
+  vState = { settings: { marca: '', modello: '', targa: '', kmTotali: 0, cilindrata: null, cavalli: null }, expenses: [], refuels: [], insurances: [], revisioni: [], bollo: [], manutenzione: [], parts: {}, plannedTrips: [] };
   vaRenderMasthead();
   vaShowTab('riepilogo');
   await vaLoadAll();
@@ -4797,7 +4796,6 @@ function vaRenderImpostazioni() {
   document.getElementById('va-set-km').value = vState.settings.kmTotali || '';
   document.getElementById('va-set-cc').value = vState.settings.cilindrata || '';
   document.getElementById('va-set-cv').value = vState.settings.cavalli || '';
-  document.getElementById('va-set-ors-key').value = vState.settings.orsApiKey || '';
 }
 async function vaSaveSettingsForm() {
   vState.settings.marca = document.getElementById('va-set-marca').value.trim();
@@ -4806,7 +4804,6 @@ async function vaSaveSettingsForm() {
   vState.settings.kmTotali = parseFloat(document.getElementById('va-set-km').value) || 0;
   vState.settings.cilindrata = parseFloat(document.getElementById('va-set-cc').value) || null;
   vState.settings.cavalli = parseFloat(document.getElementById('va-set-cv').value) || null;
-  vState.settings.orsApiKey = document.getElementById('va-set-ors-key').value.trim();
   await vaSave('settings', vState.settings);
   vaRenderMasthead();
   showToast('Impostazioni salvate');
