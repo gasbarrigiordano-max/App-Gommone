@@ -1224,18 +1224,27 @@
       <div class="vg-suggestions" id="vg-to-suggestions" style="display:none;"></div>
     </div>
 
-    <div class="btn-row btn-row-compact">
-      <button class="btn btn-primary" id="vg-mode-depart-btn" onclick="vgSetMode('depart')">Parto alle</button>
-      <button class="btn btn-ghost" id="vg-mode-arrive-btn" onclick="vgSetMode('arrive')">Voglio arrivare alle</button>
+    <div class="field">
+      <label style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0; cursor:pointer;">
+        <span>Imposta data e orario di partenza/arrivo</span>
+        <input type="checkbox" id="vg-time-enabled" onchange="vgToggleTimeSection()" style="width:20px; height:20px; accent-color:var(--brass); flex-shrink:0; margin-left:10px;">
+      </label>
+      <div class="field-hint">Facoltativo: senza attivarlo calcolo comunque distanza, durata e costo del viaggio, senza orari di partenza/arrivo.</div>
     </div>
-    <div class="stat-row" style="margin-top:14px;">
-      <div class="field" style="margin-bottom:0;">
-        <label>Data</label>
-        <input type="date" id="vg-date">
+    <div id="vg-time-section" style="display:none;">
+      <div class="btn-row btn-row-compact">
+        <button class="btn btn-primary" id="vg-mode-depart-btn" onclick="vgSetMode('depart')">Parto alle</button>
+        <button class="btn btn-ghost" id="vg-mode-arrive-btn" onclick="vgSetMode('arrive')">Voglio arrivare alle</button>
       </div>
-      <div class="field" style="margin-bottom:0;">
-        <label id="vg-time-label">Ora di partenza</label>
-        <input type="time" id="vg-time">
+      <div class="stat-row" style="margin-top:14px;">
+        <div class="field" style="margin-bottom:0;">
+          <label>Data</label>
+          <input type="date" id="vg-date">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label id="vg-time-label">Ora di partenza</label>
+          <input type="time" id="vg-time">
+        </div>
       </div>
     </div>
 
@@ -3404,6 +3413,8 @@ function vgResetViaggioState() {
   });
   document.getElementById('vg-result-card').style.display = 'none';
   document.getElementById('vg-consumo-hint').textContent = '';
+  document.getElementById('vg-time-enabled').checked = false;
+  vgToggleTimeSection();
 }
 function vgOnPlaceInput(field) {
   vgSelectedPlace[field] = null;
@@ -3451,6 +3462,9 @@ function vgSetMode(mode) {
   document.getElementById('vg-mode-arrive-btn').classList.toggle('btn-primary', mode === 'arrive');
   document.getElementById('vg-mode-arrive-btn').classList.toggle('btn-ghost', mode !== 'arrive');
   document.getElementById('vg-time-label').textContent = mode === 'depart' ? 'Ora di partenza' : 'Ora di arrivo desiderata';
+}
+function vgToggleTimeSection() {
+  document.getElementById('vg-time-section').style.display = document.getElementById('vg-time-enabled').checked ? 'block' : 'none';
 }
 function vgEstimateKmPerLiter(cc, cv) {
   if (!cc || !cv || cc <= 0 || cv <= 0) return null;
@@ -3562,9 +3576,10 @@ async function vgCalcolaViaggio() {
   const from = document.getElementById('vg-from').value.trim();
   const to = document.getElementById('vg-to').value.trim();
   if (!from || !to) { showToast('Inserisci luogo di partenza e di arrivo'); return; }
+  const timeEnabled = document.getElementById('vg-time-enabled').checked;
   const date = document.getElementById('vg-date').value || todayISO();
   const time = document.getElementById('vg-time').value;
-  if (!time) { showToast(vgMode === 'depart' ? 'Inserisci l\'ora di partenza' : 'Inserisci l\'ora di arrivo desiderata'); return; }
+  if (timeEnabled && !time) { showToast(vgMode === 'depart' ? 'Inserisci l\'ora di partenza' : 'Inserisci l\'ora di arrivo desiderata'); return; }
   const fuelPrice = parseFloat(document.getElementById('vg-fuel-price').value) || 0;
   const cc = parseFloat(document.getElementById('vg-cc').value) || null;
   const cv = parseFloat(document.getElementById('vg-cv').value) || null;
@@ -3598,15 +3613,17 @@ async function vgCalcolaViaggio() {
       routes = [{ ...route, routeLabel: null }];
     }
 
-    const chosen = new Date(date + 'T' + time + ':00');
+    const chosen = timeEnabled ? new Date(date + 'T' + time + ':00') : null;
     vgLastResults = routes.map(route => {
-      let departAt, arriveAt;
-      if (vgMode === 'depart') {
-        departAt = chosen;
-        arriveAt = new Date(chosen.getTime() + route.durationMin * 60000);
-      } else {
-        arriveAt = chosen;
-        departAt = new Date(chosen.getTime() - route.durationMin * 60000);
+      let departAt = null, arriveAt = null;
+      if (chosen) {
+        if (vgMode === 'depart') {
+          departAt = chosen;
+          arriveAt = new Date(chosen.getTime() + route.durationMin * 60000);
+        } else {
+          arriveAt = chosen;
+          departAt = new Date(chosen.getTime() - route.durationMin * 60000);
+        }
       }
       const litersNeeded = route.distanceKm / consumo;
       const fuelCost = litersNeeded * fuelPrice;
@@ -3615,8 +3632,8 @@ async function vgCalcolaViaggio() {
       return {
         from, to, fromLabel: fromPoint.label, toLabel: toPoint.label,
         distanceKm: route.distanceKm, durationMin: route.durationMin, routeLabel: route.routeLabel,
-        mode: vgMode, date, time, fuelPrice, cc, cv, consumo,
-        departAt: departAt.toISOString(), arriveAt: arriveAt.toISOString(),
+        mode: timeEnabled ? vgMode : null, date: timeEnabled ? date : null, time: timeEnabled ? time : null, fuelPrice, cc, cv, consumo,
+        departAt: departAt ? departAt.toISOString() : null, arriveAt: arriveAt ? arriveAt.toISOString() : null,
         tollKm: route.tollKm ?? null, fuelCost, tollCost: route.tollKm != null ? tollCost : null, cost,
       };
     });
@@ -3644,10 +3661,10 @@ function vgRenderResult() {
         <div class="stat-card"><div class="k">Distanza</div><div class="v">${r.distanceKm.toFixed(0)} km</div></div>
         <div class="stat-card"><div class="k">Durata stimata</div><div class="v">${vgFmtDurationMin(r.durationMin)}</div></div>
       </div>
-      <div class="stat-row" style="margin-top:10px;">
+      ${r.departAt ? `<div class="stat-row" style="margin-top:10px;">
         <div class="stat-card"><div class="k">Partenza</div><div class="v">${fmtTimeOfDay(r.departAt)}${r.mode === 'arrive' ? ' (calcolata)' : ''}</div></div>
         <div class="stat-card"><div class="k">Arrivo</div><div class="v">${fmtTimeOfDay(r.arriveAt)}${r.mode === 'depart' ? ' (stimato)' : ''}</div></div>
-      </div>
+      </div>` : ''}
       <div class="stat-row" style="margin-top:10px;">
         <div class="stat-card"><div class="k">Carburante</div><div class="v">${fuelCostText}</div></div>
         <div class="stat-card"><div class="k">Pedaggio stimato</div><div class="v">${tollCostText}</div></div>
@@ -3679,7 +3696,7 @@ function vgRenderSavedTrips() {
       <div class="cat-badge">🧭</div>
       <div class="activity-info">
         <div class="activity-title">${escapeHtml(t.from)} → ${escapeHtml(t.to)}${t.routeLabel ? ' · ' + escapeHtml(t.routeLabel) : ''}</div>
-        <div class="activity-sub">${fmtDate(t.date)} · ${t.distanceKm.toFixed(0)} km · parte ${fmtTimeOfDay(t.departAt)}, arriva ${fmtTimeOfDay(t.arriveAt)}</div>
+        <div class="activity-sub">${fmtDate(t.date || t.createdAt.slice(0, 10))} · ${t.distanceKm.toFixed(0)} km${t.departAt ? ` · parte ${fmtTimeOfDay(t.departAt)}, arriva ${fmtTimeOfDay(t.arriveAt)}` : ''}</div>
       </div>
       <div class="activity-amount trip">${t.fuelPrice > 0 ? fmtEUR(t.cost) : '—'}</div>
     </div>`).join('');
