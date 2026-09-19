@@ -1253,19 +1253,8 @@
 
     <div id="vg-result-card" style="display:none; margin-top:20px;">
       <div class="section-label" style="margin-top:0;">Risultato</div>
-      <div class="stat-row">
-        <div class="stat-card"><div class="k">Distanza</div><div class="v" id="vg-result-distance">—</div></div>
-        <div class="stat-card"><div class="k">Durata stimata</div><div class="v" id="vg-result-duration">—</div></div>
-      </div>
-      <div class="stat-row" style="margin-top:10px;">
-        <div class="stat-card"><div class="k">Partenza</div><div class="v" id="vg-result-depart">—</div></div>
-        <div class="stat-card"><div class="k">Arrivo</div><div class="v" id="vg-result-arrive">—</div></div>
-      </div>
-      <div class="stat-row" style="margin-top:10px;">
-        <div class="stat-card"><div class="k">Costo carburante stimato</div><div class="v brass" id="vg-result-cost">—</div></div>
-      </div>
-      <div class="field-hint" id="vg-result-hint" style="margin-top:8px;"></div>
-      <button class="btn btn-ghost" style="margin-top:14px;" onclick="vgSalvaViaggio()">Salva questo viaggio</button>
+      <div class="field-hint" id="vg-result-hint" style="margin-bottom:14px;"></div>
+      <div id="vg-results-container"></div>
     </div>
 
     <div class="section-label" style="margin-top:28px;">Viaggi salvati</div>
@@ -1306,6 +1295,11 @@
       </div>
     </div>
     <div class="field-hint" style="margin-top:8px; margin-bottom:16px;">Usati come valori di partenza per la stima del consumo in Viaggio — modificabili anche lì per un mezzo diverso.</div>
+    <div class="field">
+      <label>Chiave API OpenRouteService (opzionale)</label>
+      <input type="text" id="va-set-ors-key" placeholder="incolla qui la tua chiave">
+      <div class="field-hint">Serve solo per il confronto percorso con/senza pedaggio in Viaggio. Gratuita: registrati su openrouteservice.org/dev/#/signup (solo email, senza carta), poi crea un token per l'API "Directions" e incollalo qui. Senza chiave, Viaggio calcola comunque un unico percorso stimato.</div>
+    </div>
     <button class="btn btn-primary" onclick="vaSaveSettingsForm()">Salva impostazioni</button>
 
     <div class="section-label">Dati</div>
@@ -3291,7 +3285,7 @@ function vaAllPartKeys() {
 
 let currentVehicle = null;
 let vState = {
-  settings: { marca: '', modello: '', targa: '', kmTotali: 0, cilindrata: null, cavalli: null },
+  settings: { marca: '', modello: '', targa: '', kmTotali: 0, cilindrata: null, cavalli: null, orsApiKey: '' },
   expenses: [], refuels: [], insurances: [], revisioni: [], bollo: [], manutenzione: [], parts: {}, plannedTrips: [],
 };
 let vaStatsYear = new Date().getFullYear();
@@ -3366,18 +3360,22 @@ function vaCurrentBollo() { return vaCurrentOf(vState.bollo); }
 function vaCurrentRevisione() { return vaCurrentOf(vState.revisioni); }
 
 /* ---- Viaggio: pianificazione con calcolo distanza/tempo/costo ----
-   Geocoding e instradamento tramite servizi gratuiti basati su OpenStreetMap
-   (Nominatim + OSRM pubblico): nessuna chiave API, ma serve connessione internet
-   nel momento in cui si calcola un viaggio. Il consumo km/L è sempre modificabile:
-   di default usa il dato reale calcolato dai rifornimenti se disponibile, altrimenti
-   una stima approssimativa da cilindrata e potenza. */
+   Geocoding tramite Nominatim (OpenStreetMap, gratuito, nessuna chiave). Per
+   l'instradamento: se in Impostazioni è presente una chiave OpenRouteService
+   (gratuita, richiede registrazione), calcola DUE percorsi — più veloce e senza
+   pedaggio — usando la loro opzione avoid_features:["tollways"]; altrimenti usa
+   OSRM pubblico (gratuito, nessuna chiave) per un unico percorso stimato, senza
+   poter distinguere i pedaggi. Serve comunque connessione internet al momento del
+   calcolo. Il consumo km/L è sempre modificabile: di default usa il dato reale
+   calcolato dai rifornimenti se disponibile, altrimenti una stima approssimativa
+   da cilindrata e potenza. */
 let vgMode = 'depart';
 let vgConsumoDirty = false;
-let vgLastResult = null;
+let vgLastResults = null;
 function vgResetViaggioState() {
   vgMode = 'depart';
   vgConsumoDirty = false;
-  vgLastResult = null;
+  vgLastResults = null;
   ['vg-from', 'vg-to', 'vg-date', 'vg-time', 'vg-fuel-price', 'vg-cc', 'vg-cv', 'vg-consumo'].forEach(id => {
     document.getElementById(id).value = '';
   });
@@ -3463,6 +3461,24 @@ async function vgRoute(fromPoint, toPoint) {
   const route = data.routes[0];
   return { distanceKm: route.distance / 1000, durationMin: route.duration / 60 };
 }
+async function vgRouteOrs(fromPoint, toPoint, apiKey, avoidTolls) {
+  const body = { coordinates: [[fromPoint.lon, fromPoint.lat], [toPoint.lon, toPoint.lat]] };
+  if (avoidTolls) body.options = { avoid_features: ['tollways'] };
+  let res;
+  try {
+    res = await fetch('https://api.openrouteservice.org/v2/directions/driving-car', {
+      method: 'POST',
+      headers: { 'Authorization': apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (e) { throw new Error('Connessione assente: impossibile calcolare il percorso'); }
+  if (res.status === 401 || res.status === 403) throw new Error('Chiave OpenRouteService non valida: controllala in Impostazioni');
+  if (!res.ok) throw new Error('Calcolo del percorso fallito (OpenRouteService)');
+  const data = await res.json();
+  if (!data.routes || !data.routes.length) throw new Error('Nessun percorso trovato tra questi due luoghi');
+  const summary = data.routes[0].summary;
+  return { distanceKm: summary.distance / 1000, durationMin: summary.duration / 60 };
+}
 async function vgCalcolaViaggio() {
   const from = document.getElementById('vg-from').value.trim();
   const to = document.getElementById('vg-to').value.trim();
@@ -3476,6 +3492,7 @@ async function vgCalcolaViaggio() {
   let consumo = parseFloat(document.getElementById('vg-consumo').value);
   if (!(consumo > 0)) consumo = vgEstimateKmPerLiter(cc, cv);
   if (!(consumo > 0)) { showToast('Inserisci un consumo valido, oppure cilindrata e potenza'); return; }
+  const orsKey = (vState.settings.orsApiKey || '').trim();
 
   const btn = document.getElementById('vg-calc-btn');
   btn.disabled = true;
@@ -3483,28 +3500,42 @@ async function vgCalcolaViaggio() {
   document.getElementById('vg-result-card').style.display = 'none';
   try {
     const [fromPoint, toPoint] = await Promise.all([vgGeocode(from), vgGeocode(to)]);
-    const route = await vgRoute(fromPoint, toPoint);
 
-    const chosen = new Date(date + 'T' + time + ':00');
-    let departAt, arriveAt;
-    if (vgMode === 'depart') {
-      departAt = chosen;
-      arriveAt = new Date(chosen.getTime() + route.durationMin * 60000);
+    let routes;
+    if (orsKey) {
+      const [fastest, noToll] = await Promise.all([
+        vgRouteOrs(fromPoint, toPoint, orsKey, false),
+        vgRouteOrs(fromPoint, toPoint, orsKey, true),
+      ]);
+      routes = [
+        { ...fastest, routeLabel: 'Più veloce (può includere pedaggi)' },
+        { ...noToll, routeLabel: 'Senza pedaggio' },
+      ];
     } else {
-      arriveAt = chosen;
-      departAt = new Date(chosen.getTime() - route.durationMin * 60000);
+      const route = await vgRoute(fromPoint, toPoint);
+      routes = [{ ...route, routeLabel: null }];
     }
 
-    const litersNeeded = route.distanceKm / consumo;
-    const cost = litersNeeded * fuelPrice;
-
-    vgLastResult = {
-      from, to, fromLabel: fromPoint.label, toLabel: toPoint.label,
-      distanceKm: route.distanceKm, durationMin: route.durationMin,
-      mode: vgMode, date, time, fuelPrice, cc, cv, consumo,
-      departAt: departAt.toISOString(), arriveAt: arriveAt.toISOString(),
-      cost,
-    };
+    const chosen = new Date(date + 'T' + time + ':00');
+    vgLastResults = routes.map(route => {
+      let departAt, arriveAt;
+      if (vgMode === 'depart') {
+        departAt = chosen;
+        arriveAt = new Date(chosen.getTime() + route.durationMin * 60000);
+      } else {
+        arriveAt = chosen;
+        departAt = new Date(chosen.getTime() - route.durationMin * 60000);
+      }
+      const litersNeeded = route.distanceKm / consumo;
+      const cost = litersNeeded * fuelPrice;
+      return {
+        from, to, fromLabel: fromPoint.label, toLabel: toPoint.label,
+        distanceKm: route.distanceKm, durationMin: route.durationMin, routeLabel: route.routeLabel,
+        mode: vgMode, date, time, fuelPrice, cc, cv, consumo,
+        departAt: departAt.toISOString(), arriveAt: arriveAt.toISOString(),
+        cost,
+      };
+    });
     vgRenderResult();
   } catch (e) {
     showToast(e.message || 'Errore nel calcolo del viaggio');
@@ -3514,22 +3545,33 @@ async function vgCalcolaViaggio() {
   }
 }
 function vgRenderResult() {
-  const r = vgLastResult;
-  if (!r) return;
+  const results = vgLastResults;
+  if (!results || !results.length) return;
   document.getElementById('vg-result-card').style.display = 'block';
-  document.getElementById('vg-result-distance').textContent = r.distanceKm.toFixed(0) + ' km';
-  document.getElementById('vg-result-duration').textContent = vgFmtDurationMin(r.durationMin);
-  document.getElementById('vg-result-depart').textContent = fmtTimeOfDay(r.departAt) + (r.mode === 'arrive' ? ' (calcolata)' : '');
-  document.getElementById('vg-result-arrive').textContent = fmtTimeOfDay(r.arriveAt) + (r.mode === 'depart' ? ' (stimato)' : '');
-  document.getElementById('vg-result-cost').textContent = r.fuelPrice > 0 ? fmtEUR(r.cost) : 'imposta il prezzo del carburante';
-  document.getElementById('vg-result-hint').textContent = `${r.fromLabel} → ${r.toLabel} · consumo usato: ${r.consumo.toFixed(1)} km/L`;
+  document.getElementById('vg-result-hint').textContent = `${results[0].fromLabel} → ${results[0].toLabel} · consumo usato: ${results[0].consumo.toFixed(1)} km/L`;
+  document.getElementById('vg-results-container').innerHTML = results.map((r, i) => `
+    <div style="${i < results.length - 1 ? 'padding-bottom:18px; margin-bottom:18px; border-bottom:1px solid var(--navy-line);' : ''}">
+      ${r.routeLabel ? `<div style="font-family:'Oswald',sans-serif; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--brass); margin-bottom:8px;">${r.routeLabel}</div>` : ''}
+      <div class="stat-row">
+        <div class="stat-card"><div class="k">Distanza</div><div class="v">${r.distanceKm.toFixed(0)} km</div></div>
+        <div class="stat-card"><div class="k">Durata stimata</div><div class="v">${vgFmtDurationMin(r.durationMin)}</div></div>
+      </div>
+      <div class="stat-row" style="margin-top:10px;">
+        <div class="stat-card"><div class="k">Partenza</div><div class="v">${fmtTimeOfDay(r.departAt)}${r.mode === 'arrive' ? ' (calcolata)' : ''}</div></div>
+        <div class="stat-card"><div class="k">Arrivo</div><div class="v">${fmtTimeOfDay(r.arriveAt)}${r.mode === 'depart' ? ' (stimato)' : ''}</div></div>
+      </div>
+      <div class="stat-row" style="margin-top:10px;">
+        <div class="stat-card"><div class="k">Costo carburante stimato</div><div class="v brass">${r.fuelPrice > 0 ? fmtEUR(r.cost) : 'imposta il prezzo del carburante'}</div></div>
+      </div>
+      <button class="btn btn-ghost" style="margin-top:12px;" onclick="vgSalvaViaggio(${i})">Salva questo percorso</button>
+    </div>`).join('');
 }
-async function vgSalvaViaggio() {
-  if (!vgLastResult) return;
-  const entry = { id: uid(), ...vgLastResult, createdAt: new Date().toISOString() };
+async function vgSalvaViaggio(index) {
+  if (!vgLastResults || !vgLastResults[index]) return;
+  const entry = { id: uid(), ...vgLastResults[index], createdAt: new Date().toISOString() };
   vState.plannedTrips.unshift(entry);
   await vaSave('plannedTrips', vState.plannedTrips);
-  showToast('Viaggio salvato');
+  showToast('Percorso salvato');
   vgRenderSavedTrips();
 }
 function vgRenderSavedTrips() {
@@ -3542,7 +3584,7 @@ function vgRenderSavedTrips() {
     <div class="activity-item" style="cursor:pointer" onclick="vgDeleteSavedTrip('${t.id}')">
       <div class="cat-badge">🧭</div>
       <div class="activity-info">
-        <div class="activity-title">${escapeHtml(t.from)} → ${escapeHtml(t.to)}</div>
+        <div class="activity-title">${escapeHtml(t.from)} → ${escapeHtml(t.to)}${t.routeLabel ? ' · ' + escapeHtml(t.routeLabel) : ''}</div>
         <div class="activity-sub">${fmtDate(t.date)} · ${t.distanceKm.toFixed(0)} km · parte ${fmtTimeOfDay(t.departAt)}, arriva ${fmtTimeOfDay(t.arriveAt)}</div>
       </div>
       <div class="activity-amount trip">${t.fuelPrice > 0 ? fmtEUR(t.cost) : '—'}</div>
@@ -3584,7 +3626,7 @@ async function vaBoot(type) {
     return;
   }
 
-  vState = { settings: { marca: '', modello: '', targa: '', kmTotali: 0, cilindrata: null, cavalli: null }, expenses: [], refuels: [], insurances: [], revisioni: [], bollo: [], manutenzione: [], parts: {}, plannedTrips: [] };
+  vState = { settings: { marca: '', modello: '', targa: '', kmTotali: 0, cilindrata: null, cavalli: null, orsApiKey: '' }, expenses: [], refuels: [], insurances: [], revisioni: [], bollo: [], manutenzione: [], parts: {}, plannedTrips: [] };
   vaRenderMasthead();
   vaShowTab('riepilogo');
   await vaLoadAll();
@@ -4755,6 +4797,7 @@ function vaRenderImpostazioni() {
   document.getElementById('va-set-km').value = vState.settings.kmTotali || '';
   document.getElementById('va-set-cc').value = vState.settings.cilindrata || '';
   document.getElementById('va-set-cv').value = vState.settings.cavalli || '';
+  document.getElementById('va-set-ors-key').value = vState.settings.orsApiKey || '';
 }
 async function vaSaveSettingsForm() {
   vState.settings.marca = document.getElementById('va-set-marca').value.trim();
@@ -4763,6 +4806,7 @@ async function vaSaveSettingsForm() {
   vState.settings.kmTotali = parseFloat(document.getElementById('va-set-km').value) || 0;
   vState.settings.cilindrata = parseFloat(document.getElementById('va-set-cc').value) || null;
   vState.settings.cavalli = parseFloat(document.getElementById('va-set-cv').value) || null;
+  vState.settings.orsApiKey = document.getElementById('va-set-ors-key').value.trim();
   await vaSave('settings', vState.settings);
   vaRenderMasthead();
   showToast('Impostazioni salvate');
