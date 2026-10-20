@@ -544,9 +544,12 @@
   .part-row-name{font-size:14.5px; color:var(--ink); font-weight:500; display:flex; align-items:center; gap:8px;}
   .part-row-sub{font-size:11.5px; color:var(--ink-faint); margin-top:2px; font-family:'IBM Plex Mono',monospace;}
   .part-chevron{width:18px; height:18px; color:var(--ink-faint); flex-shrink:0; transition:transform .18s;}
-  .part-row.open .part-chevron{transform:rotate(180deg);}
+  /* Selettori scoped al figlio diretto (non semplice discendente) perché il riquadro Tagliando
+     annida al suo interno le schede dei singoli componenti (olio, filtri): senza lo scoping,
+     aprire il Tagliando aprirebbe visivamente anche tutte le schede annidate al suo interno. */
+  .part-row.open > .part-row-header .part-chevron{transform:rotate(180deg);}
   .part-row-detail{display:none; padding:0 2px 16px;}
-  .part-row.open .part-row-detail{display:block;}
+  .part-row.open > .part-row-detail{display:block;}
 
   .altro-badge{
     font-family:'Oswald',sans-serif; font-size:8.5px; letter-spacing:0.06em; text-transform:uppercase;
@@ -1586,6 +1589,31 @@
       <button class="btn btn-primary" onclick="vaSavePartChange()">Salva</button>
     </div>
     <button class="btn btn-danger" id="va-part-delete-btn" style="margin-top:10px; display:none;" onclick="vaDeletePartChange()">Elimina questo cambio</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="va-tagliando-modal-overlay">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2 id="va-tagliando-modal-title">Registra tagliando</h2>
+    <input type="hidden" id="va-tagliando-hist-id">
+    <div class="field"><label>Data</label><input type="date" id="va-tagliando-form-date"></div>
+    <div class="field"><label>Km della macchina</label><input type="number" id="va-tagliando-form-km" inputmode="numeric" placeholder="es. 52000"></div>
+    <div class="field"><label>Costo (€)</label><input type="number" id="va-tagliando-form-price" inputmode="decimal" placeholder="es. 180"></div>
+    <div class="field"><label>Dove l'ho fatto</label><input type="text" id="va-tagliando-form-location" placeholder="es. Officina Rossi"></div>
+    <div class="field"><label>Note (opzionale)</label><input type="text" id="va-tagliando-form-note"></div>
+    <div class="field">
+      <label style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0; cursor:pointer;">
+        <span>Spesa da non conteggiare / fatta da altri</span>
+        <input type="checkbox" id="va-tagliando-form-excluded" style="width:20px; height:20px; accent-color:var(--brass); flex-shrink:0; margin-left:10px;">
+      </label>
+    </div>
+    <div class="field-hint" style="margin-bottom:16px;">Aggiorna automaticamente data e km di olio motore e di tutti i filtri. Prezzo e data d'acquisto dei singoli pezzi restano da inserire separatamente in ciascun componente.</div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeVaModal('va-tagliando-modal-overlay')">Annulla</button>
+      <button class="btn btn-primary" onclick="vaSaveTagliando()">Salva</button>
+    </div>
+    <button class="btn btn-danger" id="va-tagliando-delete-btn" style="margin-top:10px; display:none;" onclick="vaDeleteTagliando()">Elimina questo tagliando</button>
   </div>
 </div>
 
@@ -3242,13 +3270,8 @@ const VEHICLE_CAT_COLORS = ['#C9A227', '#4FA89E', '#B23A32', '#7C9CBF', '#8CA37A
 const VEHICLE_STANDARD_PARTS = {
   auto: {
     ordinaria: [
-      { key: 'tagliando', label: 'Tagliando (olio + filtri)', codeLabel: 'Prodotti usati (opzionale)' },
-      { key: 'olio_motore', label: 'Olio motore', codeLabel: 'Sigla' },
-      { key: 'filtro_olio', label: 'Filtro olio', codeLabel: 'Codice articolo' },
+      { key: 'tagliando', label: 'Tagliando (olio + filtri)' },
       { key: 'gomme', label: 'Gomme', codeLabel: 'Codice pneumatici' },
-      { key: 'filtro_aria', label: 'Filtro aria', codeLabel: 'Codice articolo' },
-      { key: 'filtro_carburante', label: 'Filtro carburante', codeLabel: 'Codice articolo' },
-      { key: 'filtro_abitacolo', label: 'Filtro abitacolo', codeLabel: 'Codice articolo' },
       { key: 'tergicristalli', label: 'Tergicristalli' },
     ],
     straordinaria: [
@@ -3297,9 +3320,21 @@ const VEHICLE_STANDARD_PARTS = {
     ],
   },
 };
+// Componenti raggruppati dentro il riquadro "Tagliando" dell'auto (solo auto, non
+// scooter/moto): registrando un nuovo tagliando, data e km si aggiornano automaticamente
+// su ognuno di questi; prezzo/data acquisto/codice restano da inserire singolarmente.
+const TAGLIANDO_SUBPARTS = [
+  { key: 'olio_motore', label: 'Olio motore', codeLabel: 'Sigla' },
+  { key: 'filtro_olio', label: 'Filtro olio', codeLabel: 'Codice articolo' },
+  { key: 'filtro_aria', label: 'Filtro aria', codeLabel: 'Codice articolo' },
+  { key: 'filtro_carburante', label: 'Filtro carburante', codeLabel: 'Codice articolo' },
+  { key: 'filtro_abitacolo', label: 'Filtro abitacolo', codeLabel: 'Codice articolo' },
+];
 function vaAllPartKeys() {
   const cfg = VEHICLE_STANDARD_PARTS[currentVehicle.type];
-  return [...cfg.ordinaria, ...cfg.straordinaria].map(p => p.key);
+  const keys = [...cfg.ordinaria, ...cfg.straordinaria].map(p => p.key);
+  if (currentVehicle.type === 'auto') keys.push(...TAGLIANDO_SUBPARTS.map(sp => sp.key));
+  return keys;
 }
 
 let currentVehicle = null;
@@ -4244,8 +4279,34 @@ function vaSortByLastDate(list) {
 }
 function vaRenderStandardParts() {
   const cfg = VEHICLE_STANDARD_PARTS[currentVehicle.type];
-  document.getElementById('va-parts-ordinaria').innerHTML = vaSortByLastDate(cfg.ordinaria).map(vaPartRowHtml).join('');
+  const normalOrdinaria = cfg.ordinaria.filter(p => p.key !== 'tagliando');
+  const rows = vaSortByLastDate(normalOrdinaria).map(vaPartRowHtml);
+  if (cfg.ordinaria.some(p => p.key === 'tagliando')) rows.unshift(vaTagliandoRowHtml());
+  document.getElementById('va-parts-ordinaria').innerHTML = rows.join('');
   document.getElementById('va-parts-straordinaria').innerHTML = vaSortByLastDate(cfg.straordinaria).map(vaPartRowHtml).join('');
+}
+function vaTagliandoRowHtml() {
+  const part = vState.parts.tagliando || { history: [] };
+  const sorted = [...part.history].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  const last = sorted[0];
+  const sub = last ? `${fmtDate(last.date)}${last.km ? ' · ' + last.km.toLocaleString('it-IT') + ' km' : ''}` : 'Nessun tagliando registrato';
+  const historyHtml = sorted.length
+    ? sorted.map(h => `<div class="history-row" onclick="vaOpenTagliandoModal('${h.id}')"><div class="hr-date">${fmtDate(h.date)}</div><div class="hr-hours">${[h.km ? h.km.toLocaleString('it-IT') + ' km' : '', h.location ? escapeHtml(h.location) : ''].filter(Boolean).join(' · ')}</div><div class="hr-price">${h.price != null ? fmtEUR(h.price) : '—'}</div></div>`).join('')
+    : `<div class="field-hint">Nessuno storico ancora.</div>`;
+  const subPartsHtml = TAGLIANDO_SUBPARTS.map(vaPartRowHtml).join('');
+  return `<div class="part-row" id="part-row-va-tagliando">
+    <div class="part-row-header" onclick="togglePartRow('va-tagliando')">
+      <div><div class="part-row-name">Tagliando (olio + filtri)</div><div class="part-row-sub">${sub}</div></div>
+      <svg class="part-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="part-row-detail">
+      <button class="btn btn-ghost" style="margin-bottom:10px;" onclick="event.stopPropagation(); vaOpenTagliandoModal()">+ Registra tagliando</button>
+      ${historyHtml}
+      <div class="section-label" style="margin-top:22px;">Componenti</div>
+      <div class="field-hint" style="margin-bottom:10px;">Data e km si aggiornano da soli a ogni tagliando registrato. Apri un componente per impostare prezzo, data d'acquisto o codice prodotto.</div>
+      ${subPartsHtml}
+    </div>
+  </div>`;
 }
 function vaPartRowHtml(p) {
   const part = vState.parts[p.key] || { history: [] };
@@ -4325,7 +4386,7 @@ async function vaSavePartChange() {
   let entry;
   if (histId) { entry = vState.parts[key].history.find(x => x.id === histId); Object.assign(entry, data); }
   else { entry = { id: uid(), ...data }; vState.parts[key].history.push(entry); }
-  const allParts = [...VEHICLE_STANDARD_PARTS[currentVehicle.type].ordinaria, ...VEHICLE_STANDARD_PARTS[currentVehicle.type].straordinaria];
+  const allParts = [...VEHICLE_STANDARD_PARTS[currentVehicle.type].ordinaria, ...VEHICLE_STANDARD_PARTS[currentVehicle.type].straordinaria, ...(currentVehicle.type === 'auto' ? TAGLIANDO_SUBPARTS : [])];
   const label = allParts.find(p => p.key === key)?.label || key;
   vaSyncLinkedExpense(entry, { date, amount: entry.price, note: label, category: 'manutenzione', excluded });
   closeVaModal('va-part-modal-overlay');
@@ -4344,6 +4405,76 @@ function vaDeletePartChange() {
     vState.parts[key].history = vState.parts[key].history.filter(x => x.id !== histId);
     closeVaModal('va-part-modal-overlay');
     showToast('Cambio eliminato');
+    vaRenderStandardParts();
+    vaRenderDashboard();
+    vaSave('parts', vState.parts);
+  });
+}
+
+function vaOpenTagliandoModal(histId) {
+  document.getElementById('va-tagliando-hist-id').value = histId || '';
+  if (histId) {
+    const h = vState.parts.tagliando.history.find(x => x.id === histId);
+    document.getElementById('va-tagliando-modal-title').textContent = 'Modifica tagliando';
+    document.getElementById('va-tagliando-form-date').value = h.date || '';
+    document.getElementById('va-tagliando-form-km').value = h.km ?? '';
+    document.getElementById('va-tagliando-form-price').value = h.price ?? '';
+    document.getElementById('va-tagliando-form-location').value = h.location || '';
+    document.getElementById('va-tagliando-form-note').value = h.note || '';
+    document.getElementById('va-tagliando-form-excluded').checked = !!h.excluded;
+    document.getElementById('va-tagliando-delete-btn').style.display = 'block';
+  } else {
+    document.getElementById('va-tagliando-modal-title').textContent = 'Registra tagliando';
+    document.getElementById('va-tagliando-form-date').value = todayISO();
+    document.getElementById('va-tagliando-form-km').value = vState.settings.kmTotali || '';
+    document.getElementById('va-tagliando-form-price').value = '';
+    document.getElementById('va-tagliando-form-location').value = '';
+    document.getElementById('va-tagliando-form-note').value = '';
+    document.getElementById('va-tagliando-form-excluded').checked = false;
+    document.getElementById('va-tagliando-delete-btn').style.display = 'none';
+  }
+  document.getElementById('va-tagliando-modal-overlay').classList.add('show');
+}
+async function vaSaveTagliando() {
+  const histId = document.getElementById('va-tagliando-hist-id').value;
+  const date = document.getElementById('va-tagliando-form-date').value || todayISO();
+  const kmVal = parseFloat(document.getElementById('va-tagliando-form-km').value);
+  const km = isNaN(kmVal) ? null : kmVal;
+  const priceVal = parseFloat(document.getElementById('va-tagliando-form-price').value);
+  const location = document.getElementById('va-tagliando-form-location').value.trim();
+  const note = document.getElementById('va-tagliando-form-note').value.trim();
+  const excluded = document.getElementById('va-tagliando-form-excluded').checked;
+  if (!vState.parts.tagliando) vState.parts.tagliando = { history: [] };
+  const data = { date, km, price: isNaN(priceVal) ? null : priceVal, location, note, excluded };
+  let entry;
+  if (histId) { entry = vState.parts.tagliando.history.find(x => x.id === histId); Object.assign(entry, data); }
+  else { entry = { id: uid(), ...data }; vState.parts.tagliando.history.push(entry); }
+  vaSyncLinkedExpense(entry, { date, amount: entry.price, note: 'Tagliando' + (location ? ' · ' + location : ''), category: 'manutenzione', excluded });
+
+  // Solo alla registrazione di un NUOVO tagliando (non alla modifica di uno esistente):
+  // propaga data e km a olio motore e a tutti i filtri, come richiesto.
+  if (!histId && km != null) {
+    TAGLIANDO_SUBPARTS.forEach(sp => {
+      if (!vState.parts[sp.key]) vState.parts[sp.key] = { history: [] };
+      vState.parts[sp.key].history.push({ id: uid(), date, km, price: null, purchaseDate: null, note: 'Aggiornato da tagliando', excluded: false });
+    });
+  }
+
+  closeVaModal('va-tagliando-modal-overlay');
+  showToast('Tagliando registrato');
+  vaRenderStandardParts();
+  vaRenderDashboard();
+  vaSave('parts', vState.parts);
+}
+function vaDeleteTagliando() {
+  const histId = document.getElementById('va-tagliando-hist-id').value;
+  const entry = vState.parts.tagliando.history.find(x => x.id === histId);
+  if (!entry) return;
+  showConfirm('Eliminare questo tagliando?', 'Verrà rimosso dallo storico e la spesa collegata (se presente) anche dalle Spese. Gli aggiornamenti già fatti ai singoli componenti (olio e filtri) non vengono annullati.', async () => {
+    vaRemoveLinkedExpense(entry);
+    vState.parts.tagliando.history = vState.parts.tagliando.history.filter(x => x.id !== histId);
+    closeVaModal('va-tagliando-modal-overlay');
+    showToast('Tagliando eliminato');
     vaRenderStandardParts();
     vaRenderDashboard();
     vaSave('parts', vState.parts);
