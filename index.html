@@ -3270,7 +3270,7 @@ const VEHICLE_CAT_COLORS = ['#C9A227', '#4FA89E', '#B23A32', '#7C9CBF', '#8CA37A
 const VEHICLE_STANDARD_PARTS = {
   auto: {
     ordinaria: [
-      { key: 'tagliando', label: 'Tagliando (olio + filtri)' },
+      { key: 'tagliando', label: 'Tagliando' },
       { key: 'gomme', label: 'Gomme', codeLabel: 'Codice pneumatici' },
       { key: 'tergicristalli', label: 'Tergicristalli' },
     ],
@@ -4284,6 +4284,7 @@ function vaRenderStandardParts() {
   if (cfg.ordinaria.some(p => p.key === 'tagliando')) rows.unshift(vaTagliandoRowHtml());
   document.getElementById('va-parts-ordinaria').innerHTML = rows.join('');
   document.getElementById('va-parts-straordinaria').innerHTML = vaSortByLastDate(cfg.straordinaria).map(vaPartRowHtml).join('');
+  applyOpenPartRows();
 }
 function vaTagliandoRowHtml() {
   const part = vState.parts.tagliando || { history: [] };
@@ -4296,7 +4297,7 @@ function vaTagliandoRowHtml() {
   const subPartsHtml = TAGLIANDO_SUBPARTS.map(vaPartRowHtml).join('');
   return `<div class="part-row" id="part-row-va-tagliando">
     <div class="part-row-header" onclick="togglePartRow('va-tagliando')">
-      <div><div class="part-row-name">Tagliando (olio + filtri)</div><div class="part-row-sub">${sub}</div></div>
+      <div><div class="part-row-name">Tagliando</div><div class="part-row-sub">${sub}</div></div>
       <svg class="part-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 9l6 6 6-6"/></svg>
     </div>
     <div class="part-row-detail">
@@ -7566,10 +7567,22 @@ function renderStandardParts() {
       </div>
     </div>`;
   }).join('');
+  applyOpenPartRows();
 }
 
+// Le schede ricambi (anche quelle annidate nel Tagliando) vengono ricostruite da zero a ogni
+// salvataggio: senza questo, l'elemento col DOM vecchio (e la sua classe "open") sparisce e
+// tutto si richiude. Qui si ricorda quali righe erano aperte e le si riapre dopo il render.
+const openPartRows = new Set();
 function togglePartRow(id) {
-  document.getElementById('part-row-' + id).classList.toggle('open');
+  const el = document.getElementById('part-row-' + id);
+  if (el.classList.toggle('open')) openPartRows.add(id); else openPartRows.delete(id);
+}
+function applyOpenPartRows() {
+  openPartRows.forEach(id => {
+    const el = document.getElementById('part-row-' + id);
+    if (el) el.classList.add('open');
+  });
 }
 
 /* ---- Scheda pezzo (dati fissi: codice prodotto, OEM, coppia) ---- */
@@ -7800,6 +7813,7 @@ function renderAltroParts() {
       </div>
     </div>`;
   }).join('');
+  applyOpenPartRows();
 }
 
 function openPartModal(id) {

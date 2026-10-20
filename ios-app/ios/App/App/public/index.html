@@ -532,9 +532,9 @@
   .part-row-name{font-size:14.5px; color:var(--ink); font-weight:500; display:flex; align-items:center; gap:8px;}
   .part-row-sub{font-size:11.5px; color:var(--ink-faint); margin-top:2px; font-family:'IBM Plex Mono',monospace;}
   .part-chevron{width:18px; height:18px; color:var(--ink-faint); flex-shrink:0; transition:transform .18s;}
-  .part-row.open .part-chevron{transform:rotate(180deg);}
+  .part-row.open > .part-row-header .part-chevron{transform:rotate(180deg);}
   .part-row-detail{display:none; padding:0 2px 16px;}
-  .part-row.open .part-row-detail{display:block;}
+  .part-row.open > .part-row-detail{display:block;}
 
   .altro-badge{
     font-family:'Oswald',sans-serif; font-size:8.5px; letter-spacing:0.06em; text-transform:uppercase;
@@ -6843,10 +6843,22 @@ function renderStandardParts() {
       </div>
     </div>`;
   }).join('');
+  applyOpenPartRows();
 }
 
+// Le schede ricambi vengono ricostruite da zero a ogni salvataggio: senza questo, l'elemento
+// col DOM vecchio (e la sua classe "open") sparisce e tutto si richiude. Qui si ricorda quali
+// righe erano aperte e le si riapre dopo il render.
+const openPartRows = new Set();
 function togglePartRow(id) {
-  document.getElementById('part-row-' + id).classList.toggle('open');
+  const el = document.getElementById('part-row-' + id);
+  if (el.classList.toggle('open')) openPartRows.add(id); else openPartRows.delete(id);
+}
+function applyOpenPartRows() {
+  openPartRows.forEach(id => {
+    const el = document.getElementById('part-row-' + id);
+    if (el) el.classList.add('open');
+  });
 }
 
 /* ---- Scheda pezzo (dati fissi: codice prodotto, OEM, coppia) ---- */
@@ -7077,6 +7089,7 @@ function renderAltroParts() {
       </div>
     </div>`;
   }).join('');
+  applyOpenPartRows();
 }
 
 function openPartModal(id) {
