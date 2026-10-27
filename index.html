@@ -1398,6 +1398,39 @@
       <input type="number" id="va-exp-amount" inputmode="decimal" placeholder="0,00">
     </div>
     <div class="field">
+      <label>Metodo di pagamento</label>
+      <select id="va-exp-payment-method">
+        <option value="">Non specificato</option>
+        <option>Contanti</option>
+        <option>Bancomat / Carta di debito</option>
+        <option>Carta di credito</option>
+        <option>Bonifico</option>
+        <option>PayPal</option>
+        <option>Klarna</option>
+        <option>Scalapay</option>
+        <option>Aliexpress</option>
+      </select>
+    </div>
+    <div class="field">
+      <label style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0; cursor:pointer;">
+        <span>Pagamento a rate</span>
+        <input type="checkbox" id="va-exp-installments" onchange="onExpInstallmentsToggle('va-')" style="width:20px; height:20px; accent-color:var(--brass); flex-shrink:0; margin-left:10px;">
+      </label>
+    </div>
+    <div class="field" id="va-exp-installment-fields" style="display:none;">
+      <div class="stat-row">
+        <div class="field" style="margin-bottom:0;">
+          <label>Importo rata (€)</label>
+          <input type="number" id="va-exp-installment-amount" inputmode="decimal" placeholder="es. 45,00" oninput="onExpInstallmentFieldInput('va-')">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label>Numero rate</label>
+          <input type="number" id="va-exp-installment-count" inputmode="numeric" placeholder="es. 6" oninput="onExpInstallmentFieldInput('va-')">
+        </div>
+      </div>
+      <div class="field-hint">L'importo (€) sopra viene calcolato come rata × numero rate; puoi comunque modificarlo a mano.</div>
+    </div>
+    <div class="field">
       <label>Data</label>
       <input type="date" id="va-exp-date">
     </div>
@@ -2448,6 +2481,39 @@
     <div class="field">
       <label>Importo (€)</label>
       <input type="number" id="exp-amount" inputmode="decimal" placeholder="0,00" oninput="onExpFuelFieldInput('total')">
+    </div>
+    <div class="field">
+      <label>Metodo di pagamento</label>
+      <select id="exp-payment-method">
+        <option value="">Non specificato</option>
+        <option>Contanti</option>
+        <option>Bancomat / Carta di debito</option>
+        <option>Carta di credito</option>
+        <option>Bonifico</option>
+        <option>PayPal</option>
+        <option>Klarna</option>
+        <option>Scalapay</option>
+        <option>Aliexpress</option>
+      </select>
+    </div>
+    <div class="field">
+      <label style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0; cursor:pointer;">
+        <span>Pagamento a rate</span>
+        <input type="checkbox" id="exp-installments" onchange="onExpInstallmentsToggle('')" style="width:20px; height:20px; accent-color:var(--brass); flex-shrink:0; margin-left:10px;">
+      </label>
+    </div>
+    <div class="field" id="exp-installment-fields" style="display:none;">
+      <div class="stat-row">
+        <div class="field" style="margin-bottom:0;">
+          <label>Importo rata (€)</label>
+          <input type="number" id="exp-installment-amount" inputmode="decimal" placeholder="es. 45,00" oninput="onExpInstallmentFieldInput('')">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label>Numero rate</label>
+          <input type="number" id="exp-installment-count" inputmode="numeric" placeholder="es. 6" oninput="onExpInstallmentFieldInput('')">
+        </div>
+      </div>
+      <div class="field-hint">L'importo (€) sopra viene calcolato come rata × numero rate; puoi comunque modificarlo a mano.</div>
     </div>
     <div class="field">
       <label>Data</label>
@@ -3944,7 +4010,7 @@ function vaRenderSpese() {
       const cat = VEHICLE_CAT_MAP[e.category] || { icon: '🚗', label: e.category };
       return `<div class="activity-item" style="cursor:pointer" onclick="vaOpenExpenseModal('${e.id}')">
         <div class="cat-badge">${cat.icon}</div>
-        <div class="activity-info"><div class="activity-title">${cat.label}${e.note ? ' · ' + escapeHtml(e.note) : ''}</div><div class="activity-sub">${fmtDate(e.date)}</div></div>
+        <div class="activity-info"><div class="activity-title">${cat.label}${e.note ? ' · ' + escapeHtml(e.note) : ''}</div><div class="activity-sub">${fmtDate(e.date)}${fmtPaymentSub(e)}</div></div>
         <div class="activity-amount">${fmtExpenseAmount(e.amount, e.excluded)}</div>
       </div>`;
     }).join('')}
@@ -3962,6 +4028,11 @@ function vaOpenExpenseModal(id) {
     document.getElementById('va-exp-date').value = e.date;
     document.getElementById('va-exp-note').value = e.note || '';
     document.getElementById('va-exp-excluded').checked = !!e.excluded;
+    document.getElementById('va-exp-payment-method').value = e.paymentMethod || '';
+    document.getElementById('va-exp-installments').checked = !!e.installments;
+    document.getElementById('va-exp-installment-amount').value = e.installmentAmount ?? '';
+    document.getElementById('va-exp-installment-count').value = e.installmentCount ?? '';
+    onExpInstallmentsToggle('va-');
     selectCategory(e.category);
     document.getElementById('va-exp-delete-btn').style.display = 'block';
   } else {
@@ -3971,6 +4042,11 @@ function vaOpenExpenseModal(id) {
     document.getElementById('va-exp-date').value = todayISO();
     document.getElementById('va-exp-note').value = '';
     document.getElementById('va-exp-excluded').checked = false;
+    document.getElementById('va-exp-payment-method').value = '';
+    document.getElementById('va-exp-installments').checked = false;
+    document.getElementById('va-exp-installment-amount').value = '';
+    document.getElementById('va-exp-installment-count').value = '';
+    onExpInstallmentsToggle('va-');
     selectCategory(vaActiveFilter !== 'tutte' ? vaActiveFilter : 'carburante');
     document.getElementById('va-exp-delete-btn').style.display = 'none';
   }
@@ -3987,10 +4063,19 @@ async function vaSaveExpense() {
   if (!date) { showToast('Inserisci una data'); return; }
   if (!catEl) { showToast('Scegli una categoria'); return; }
   const category = catEl.dataset.cat;
+  const paymentMethod = document.getElementById('va-exp-payment-method').value || null;
+  const installments = document.getElementById('va-exp-installments').checked;
+  let installmentAmount = null, installmentCount = null;
+  if (installments) {
+    const rataVal = parseFloat(document.getElementById('va-exp-installment-amount').value);
+    const countVal = parseInt(document.getElementById('va-exp-installment-count').value);
+    installmentAmount = isNaN(rataVal) ? null : rataVal;
+    installmentCount = isNaN(countVal) ? null : countVal;
+  }
   if (id) {
-    Object.assign(vState.expenses.find(x => x.id === id), { amount, date, note, category, excluded });
+    Object.assign(vState.expenses.find(x => x.id === id), { amount, date, note, category, excluded, paymentMethod, installments, installmentAmount, installmentCount });
   } else {
-    vState.expenses.push({ id: uid(), amount, date, note, category, excluded });
+    vState.expenses.push({ id: uid(), amount, date, note, category, excluded, paymentMethod, installments, installmentAmount, installmentCount });
   }
   closeVaModal('va-expense-modal-overlay');
   showToast('Spesa salvata');
@@ -5645,6 +5730,12 @@ function roundFuelPriceUp(price) {
 }
 function fmtExpenseAmount(amount, excluded) {
   return excluded ? `(-${fmtEUR(amount)})` : `-${fmtEUR(amount)}`;
+}
+function fmtPaymentSub(e) {
+  const parts = [];
+  if (e.paymentMethod) parts.push(e.paymentMethod);
+  if (e.installments && e.installmentCount) parts.push(`${e.installmentCount} rate${e.installmentAmount ? ' da ' + fmtEUR(e.installmentAmount) : ''}`);
+  return parts.length ? ' · ' + parts.join(' · ') : '';
 }
 function fmtDate(iso) {
   const d = new Date(iso + 'T00:00:00');
@@ -7953,7 +8044,7 @@ function renderSpese() {
         <div class="cat-badge">${cat.icon}</div>
         <div class="activity-info">
           <div class="activity-title">${cat.label}${e.note ? ' · ' + escapeHtml(e.note) : ''}</div>
-          <div class="activity-sub">${fmtDateShort(e.date)}</div>
+          <div class="activity-sub">${fmtDateShort(e.date)}${fmtPaymentSub(e)}</div>
         </div>
         <div class="activity-amount">${fmtExpenseAmount(e.amount, e.excluded)}</div>
       </div>`;
@@ -7987,6 +8078,11 @@ function openExpenseModal(id) {
     document.getElementById('exp-excluded').checked = !!e.excluded;
     document.getElementById('exp-fuel-liters').value = e.fuelLiters ?? '';
     document.getElementById('exp-fuel-price').value = e.fuelPricePerLitro ?? '';
+    document.getElementById('exp-payment-method').value = e.paymentMethod || '';
+    document.getElementById('exp-installments').checked = !!e.installments;
+    document.getElementById('exp-installment-amount').value = e.installmentAmount ?? '';
+    document.getElementById('exp-installment-count').value = e.installmentCount ?? '';
+    onExpInstallmentsToggle('');
     selectCategory(e.category);
     document.getElementById('exp-delete-btn').style.display = 'block';
   } else {
@@ -7998,6 +8094,11 @@ function openExpenseModal(id) {
     document.getElementById('exp-excluded').checked = false;
     document.getElementById('exp-fuel-liters').value = '';
     document.getElementById('exp-fuel-price').value = '';
+    document.getElementById('exp-payment-method').value = '';
+    document.getElementById('exp-installments').checked = false;
+    document.getElementById('exp-installment-amount').value = '';
+    document.getElementById('exp-installment-count').value = '';
+    onExpInstallmentsToggle('');
     selectCategory(state.activeFilter !== 'tutte' ? state.activeFilter : 'carburante');
     document.getElementById('exp-delete-btn').style.display = 'none';
   }
@@ -8034,6 +8135,18 @@ function onExpFuelFieldInput(field) {
     document.getElementById('exp-fuel-liters').value = (total / price).toFixed(1);
   }
 }
+/* Condivise tra spesa barca (prefix '') e spesa Auto/Scooter/Moto (prefix 'va-') */
+function onExpInstallmentsToggle(prefix) {
+  const on = document.getElementById(prefix + 'exp-installments').checked;
+  document.getElementById(prefix + 'exp-installment-fields').style.display = on ? 'block' : 'none';
+}
+function onExpInstallmentFieldInput(prefix) {
+  const rata = parseFloat(document.getElementById(prefix + 'exp-installment-amount').value);
+  const count = parseFloat(document.getElementById(prefix + 'exp-installment-count').value);
+  if (rata > 0 && count > 0) {
+    document.getElementById(prefix + 'exp-amount').value = (rata * count).toFixed(2);
+  }
+}
 async function saveExpense() {
   const id = document.getElementById('exp-id').value;
   const amount = parseFloat(document.getElementById('exp-amount').value);
@@ -8054,12 +8167,21 @@ async function saveExpense() {
     fuelLiters = isNaN(litersVal) ? null : litersVal;
     fuelPricePerLitro = isNaN(priceVal) ? null : priceVal;
   }
+  const paymentMethod = document.getElementById('exp-payment-method').value || null;
+  const installments = document.getElementById('exp-installments').checked;
+  let installmentAmount = null, installmentCount = null;
+  if (installments) {
+    const rataVal = parseFloat(document.getElementById('exp-installment-amount').value);
+    const countVal = parseInt(document.getElementById('exp-installment-count').value);
+    installmentAmount = isNaN(rataVal) ? null : rataVal;
+    installmentCount = isNaN(countVal) ? null : countVal;
+  }
 
   if (id) {
     const e = state.expenses.find(x => x.id === id);
-    Object.assign(e, { amount, date, note, category, excluded, fuelLiters, fuelPricePerLitro });
+    Object.assign(e, { amount, date, note, category, excluded, fuelLiters, fuelPricePerLitro, paymentMethod, installments, installmentAmount, installmentCount });
   } else {
-    state.expenses.push({ id: uid(), amount, date, note, category, excluded, fuelLiters, fuelPricePerLitro });
+    state.expenses.push({ id: uid(), amount, date, note, category, excluded, fuelLiters, fuelPricePerLitro, paymentMethod, installments, installmentAmount, installmentCount });
   }
   closeExpenseModal();
   showToast('Spesa salvata');
