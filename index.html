@@ -1428,6 +1428,10 @@
           <input type="number" id="va-exp-installment-count" inputmode="numeric" placeholder="es. 6" oninput="onExpInstallmentFieldInput('va-')">
         </div>
       </div>
+      <div class="field" style="margin:10px 0 0;">
+        <label>Servizio (le rate escono da "Pagato con")</label>
+        <select id="va-exp-installment-service" class="pag-servizio"></select>
+      </div>
       <div class="field-hint">L'importo (€) sopra viene calcolato come rata × numero rate; puoi comunque modificarlo a mano.</div>
     </div>
     <div class="field">
@@ -2513,6 +2517,10 @@
           <input type="number" id="exp-installment-count" inputmode="numeric" placeholder="es. 6" oninput="onExpInstallmentFieldInput('')">
         </div>
       </div>
+      <div class="field" style="margin:10px 0 0;">
+        <label>Servizio (le rate escono da "Pagato con")</label>
+        <select id="exp-installment-service" class="pag-servizio"></select>
+      </div>
       <div class="field-hint">L'importo (€) sopra viene calcolato come rata × numero rate; puoi comunque modificarlo a mano.</div>
     </div>
     <div class="field">
@@ -3319,19 +3327,116 @@ function selectVehicle(v) {
 }
 
 /* ================= APP VEICOLO (Auto / Scooter / Moto) ================= */
-const VEHICLE_CATEGORIES = [
-  { id: 'carburante',    label: 'Carburante',        icon: '⛽' },
-  { id: 'manutenzione',  label: 'Manutenzione',      icon: '🔧' },
-  { id: 'revisione',     label: 'Revisione',         icon: '📋' },
-  { id: 'bollo',         label: 'Bollo',             icon: '📄' },
-  { id: 'assicurazione', label: 'Assicurazione',     icon: '🛡️' },
-  { id: 'ricambi',       label: 'Ricambi',           icon: '🧰' },
-  { id: 'acquisto',      label: 'Acquisto',          icon: '🛒' },
-  { id: 'documenti',     label: 'Documenti/Tasse',   icon: '🗂️' },
-  { id: 'altro',         label: 'Altro',             icon: '🚗' },
+/* ---------------- Pagato con: i conti e le carte dell'app Bilancio ----------------
+   Bilancio, collegata con lo stesso account, scrive qui l'elenco dei suoi metodi di pagamento
+   (data/bilancioPagamenti = {pagamenti:[{id, label, g}], servizi:[...]}: solo i nomi, mai saldi).
+   Ogni modulo che crea una spesa ha "Pagato con": la spesa (e la sua scheda) salvano pagId (l'id di
+   Bilancio, es. "k:ing-oro") e paymentMethod (il nome leggibile). Senza l'elenco di Bilancio restano
+   le voci generiche di prima. */
+const PAG_GENERICI = ['Contanti', 'Bancomat / Carta di debito', 'Carta di credito', 'Bonifico', 'PayPal', 'Klarna', 'Scalapay', 'Aliexpress'];
+const PAG_SERVIZI_BASE = ['PayPal', 'Klarna', 'Scalapay', 'Aliexpress', 'Findomestic', 'Compass'];
+let PAG_BILANCIO = null; // {pagamenti, servizi} letto da Bilancio
+// moduli con la spesa: id della casella "da non conteggiare" senza "-excluded" → id del menu "Pagato con"
+const pagSelId = base => base === 'va-exp' ? 'va-exp-payment-method' : base === 'exp' ? 'exp-payment-method' : base + '-pag';
+function pagOptionsHtml() {
+  const opt = (v, l) => `<option value="${escapeHtml(v)}">${escapeHtml(l)}</option>`;
+  if (!PAG_BILANCIO || !(PAG_BILANCIO.pagamenti || []).length) return opt('', 'Non specificato') + PAG_GENERICI.map(x => opt(x, x)).join('');
+  const gruppi = {};
+  PAG_BILANCIO.pagamenti.forEach(x => { (gruppi[x.g || 'Altro'] = gruppi[x.g || 'Altro'] || []).push(x); });
+  return opt('', 'Non specificato') + Object.entries(gruppi).map(([g, l]) => `<optgroup label="${escapeHtml(g)}">${l.map(x => opt(x.id, x.label)).join('')}</optgroup>`).join('');
+}
+function pagServiziHtml() {
+  const l = [...new Set([...((PAG_BILANCIO && PAG_BILANCIO.servizi) || []), ...PAG_SERVIZI_BASE])];
+  return l.map(x => `<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');
+}
+function pagLabel(id) {
+  const x = PAG_BILANCIO && (PAG_BILANCIO.pagamenti || []).find(p => p.id === id);
+  return x ? x.label : id;
+}
+// aggiunge "Pagato con" sopra la casella "da non conteggiare" di ogni modulo che non lo ha già
+function pagInitFields() {
+  document.querySelectorAll('input[type=checkbox][id$="-excluded"]').forEach(cb => {
+    const base = cb.id.slice(0, -'-excluded'.length);
+    const sid = pagSelId(base);
+    let sel = document.getElementById(sid);
+    if (!sel) {
+      const field = cb.closest('.field');
+      if (!field) return;
+      const f = document.createElement('div');
+      f.className = 'field';
+      f.innerHTML = `<label>Pagato con</label><select id="${sid}"></select>`;
+      field.parentNode.insertBefore(f, field);
+      sel = document.getElementById(sid);
+    } else {
+      const lb = sel.closest('.field') && sel.closest('.field').querySelector('label');
+      if (lb) lb.textContent = 'Pagato con';
+    }
+    sel.classList.add('pag-sel');
+  });
+  pagRefreshSelects();
+}
+function pagRefreshSelects() {
+  const html = pagOptionsHtml();
+  document.querySelectorAll('select.pag-sel').forEach(sel => { const v = sel.value; sel.innerHTML = html; pagSelectValue(sel, v); });
+  document.querySelectorAll('select.pag-servizio').forEach(sel => { const v = sel.value; sel.innerHTML = pagServiziHtml(); if (v) sel.value = v; });
+}
+function pagSelectValue(sel, v) {
+  if (v && ![...sel.options].some(o => o.value === v)) sel.insertAdjacentHTML('beforeend', `<option value="${escapeHtml(v)}">${escapeHtml(pagLabel(v))}</option>`);
+  sel.value = v || '';
+}
+// all'apertura di un modulo: il metodo della scheda/spesa, o per una nuova l'ultimo usato
+function pagSet(base, rec) {
+  const sel = document.getElementById(pagSelId(base)); if (!sel) return;
+  let ultimo = ''; try { ultimo = localStorage.getItem('bordo:ultimoPag') || ''; } catch (e) {}
+  pagSelectValue(sel, rec ? (rec.pagId || rec.paymentMethod || '') : ultimo);
+}
+// al salvataggio: {pagId, paymentMethod} da mettere nella spesa e nella scheda
+function pagGet(base) {
+  const sel = document.getElementById(pagSelId(base));
+  const v = sel ? sel.value : '';
+  if (v) { try { localStorage.setItem('bordo:ultimoPag', v); } catch (e) {} }
+  return { pagId: v || null, paymentMethod: v ? pagLabel(v) : null };
+}
+async function pagCarica() {
+  try {
+    const r = await storageGet('bilancioPagamenti');
+    PAG_BILANCIO = r && r.value ? JSON.parse(r.value) : null;
+  } catch (e) { PAG_BILANCIO = null; }
+  pagRefreshSelects();
+}
+
+pagInitFields();
+
+// tutte le categorie, anche quelle che non si scelgono più (restano sulle spese già registrate)
+const VEHICLE_CAT_ALL = [
+  { id: 'carburante',       label: 'Carburante',                 icon: '⛽' },
+  { id: 'manutenzione',     label: 'Manutenzione ordinaria',     icon: '🔧' },
+  { id: 'manutenzione_str', label: 'Manutenzione straordinaria', icon: '🛠️' },
+  { id: 'tagliando',        label: 'Tagliando',                  icon: '🧴' },
+  { id: 'revisione',        label: 'Revisione',                  icon: '📋' },
+  { id: 'bollo',            label: 'Bollo',                      icon: '📄' },
+  { id: 'assicurazione',    label: 'Assicurazione',              icon: '🛡️' },
+  { id: 'ricambi',          label: 'Ricambi',                    icon: '🧰' },
+  { id: 'acquisto',         label: 'Acquisti',                   icon: '🛒' },
+  { id: 'documenti',        label: 'Documenti/Tasse',            icon: '🗂️' },
+  { id: 'altro',            label: 'Spese varie',                icon: '🚗' },
 ];
-const VEHICLE_CAT_MAP = Object.fromEntries(VEHICLE_CATEGORIES.map(c => [c.id, c]));
-const VEHICLE_CAT_COLORS = ['#C9A227', '#4FA89E', '#B23A32', '#7C9CBF', '#8CA37A', '#C97F5F', '#D4A574', '#6E7FB8', '#A0A0A0'];
+// categorie da scegliere per mezzo, con il loro nome (le stesse dell'app Bilancio: Mezzi › Auto / SH / Gommone)
+const VEHICLE_CAT_SCELTE = {
+  auto: [['carburante', 'Gasolio'], ['manutenzione'], ['manutenzione_str'], ['tagliando'], ['revisione'], ['assicurazione'], ['bollo'], ['acquisto'], ['altro']],
+  scooter: [['carburante', 'Benzina'], ['manutenzione'], ['manutenzione_str'], ['tagliando'], ['revisione'], ['assicurazione'], ['bollo']],
+};
+VEHICLE_CAT_SCELTE.moto = VEHICLE_CAT_SCELTE.scooter;
+let VEHICLE_CATEGORIES = [], VEHICLE_CAT_MAP = {};
+function vaSetCategorie(type) {
+  const scelte = VEHICLE_CAT_SCELTE[type] || VEHICLE_CAT_SCELTE.auto;
+  const nomi = Object.fromEntries(scelte.filter(x => x[1]));
+  VEHICLE_CAT_MAP = Object.fromEntries(VEHICLE_CAT_ALL.map(c => [c.id, { ...c, label: nomi[c.id] || c.label }]));
+  VEHICLE_CATEGORIES = scelte.map(([id]) => VEHICLE_CAT_MAP[id]);
+  ['va-cat-grid', 'va-spese-filter'].forEach(id => { const el = document.getElementById(id); if (el) delete el.dataset.built; });
+}
+vaSetCategorie('auto');
+const VEHICLE_CAT_COLORS = ['#C9A227', '#4FA89E', '#B23A32', '#7C9CBF', '#8CA37A', '#C97F5F', '#D4A574', '#6E7FB8', '#A0A0A0', '#5C8A99', '#B87FA0'];
 
 const VEHICLE_STANDARD_PARTS = {
   auto: {
@@ -3412,6 +3517,7 @@ let vaStatsYear = new Date().getFullYear();
 let vaRefuelYear = new Date().getFullYear();
 
 async function vaLoadAll() {
+  pagCarica();
   const p = currentVehicle.prefix;
   const keys = ['settings', 'expenses', 'refuels', 'insurances', 'revisioni', 'bollo', 'manutenzione', 'parts', 'plannedTrips'];
   const results = await Promise.all(keys.map(key =>
@@ -3443,6 +3549,11 @@ async function vaLoadAll() {
       const exp = vState.expenses.find(x => x.id === r.expenseId);
       if (exp && exp.category !== 'revisione') { exp.category = 'revisione'; vaCategoryFixed = true; }
     }
+  });
+  // le spese dei tagliandi già registrati (prima erano "manutenzione") passano alla categoria Tagliando
+  ((vState.parts.tagliando || {}).history || []).forEach(h => {
+    const exp = h.expenseId && vState.expenses.find(x => x.id === h.expenseId);
+    if (exp && exp.category === 'manutenzione') { exp.category = 'tagliando'; vaCategoryFixed = true; }
   });
   if (vaCategoryFixed) await vaSave('expenses', vState.expenses);
 
@@ -3830,6 +3941,7 @@ const VA_VEHICLE_DEFS = {
 };
 async function vaBoot(type) {
   currentVehicle = VA_VEHICLE_DEFS[type];
+  vaSetCategorie(type);
   vgResetViaggioState();
   document.getElementById('va-icon').textContent = currentVehicle.icon;
   document.getElementById('va-brand-label').textContent = currentVehicle.label;
@@ -4027,11 +4139,11 @@ function vaOpenExpenseModal(id) {
     document.getElementById('va-exp-amount').value = e.amount;
     document.getElementById('va-exp-date').value = e.date;
     document.getElementById('va-exp-note').value = e.note || '';
-    document.getElementById('va-exp-excluded').checked = !!e.excluded;
-    document.getElementById('va-exp-payment-method').value = e.paymentMethod || '';
+    document.getElementById('va-exp-excluded').checked = !!e.excluded; pagSet('va-exp', e);
     document.getElementById('va-exp-installments').checked = !!e.installments;
     document.getElementById('va-exp-installment-amount').value = e.installmentAmount ?? '';
     document.getElementById('va-exp-installment-count').value = e.installmentCount ?? '';
+    document.getElementById('va-exp-installment-service').value = e.installmentService || 'PayPal';
     onExpInstallmentsToggle('va-');
     selectCategory(e.category);
     document.getElementById('va-exp-delete-btn').style.display = 'block';
@@ -4041,11 +4153,11 @@ function vaOpenExpenseModal(id) {
     document.getElementById('va-exp-amount').value = '';
     document.getElementById('va-exp-date').value = todayISO();
     document.getElementById('va-exp-note').value = '';
-    document.getElementById('va-exp-excluded').checked = false;
-    document.getElementById('va-exp-payment-method').value = '';
+    document.getElementById('va-exp-excluded').checked = false; pagSet('va-exp', null);
     document.getElementById('va-exp-installments').checked = false;
     document.getElementById('va-exp-installment-amount').value = '';
     document.getElementById('va-exp-installment-count').value = '';
+    document.getElementById('va-exp-installment-service').value = 'PayPal';
     onExpInstallmentsToggle('va-');
     selectCategory(vaActiveFilter !== 'tutte' ? vaActiveFilter : 'carburante');
     document.getElementById('va-exp-delete-btn').style.display = 'none';
@@ -4058,24 +4170,26 @@ async function vaSaveExpense() {
   const date = document.getElementById('va-exp-date').value;
   const note = document.getElementById('va-exp-note').value.trim();
   const excluded = document.getElementById('va-exp-excluded').checked;
+  const pag = pagGet('va-exp');
   const catEl = document.querySelector('#va-cat-grid .cat-opt.selected');
   if (!amount || amount <= 0) { showToast('Inserisci un importo valido'); return; }
   if (!date) { showToast('Inserisci una data'); return; }
   if (!catEl) { showToast('Scegli una categoria'); return; }
   const category = catEl.dataset.cat;
-  const paymentMethod = document.getElementById('va-exp-payment-method').value || null;
+  const { pagId, paymentMethod } = pag;
   const installments = document.getElementById('va-exp-installments').checked;
-  let installmentAmount = null, installmentCount = null;
+  let installmentAmount = null, installmentCount = null, installmentService = null;
   if (installments) {
     const rataVal = parseFloat(document.getElementById('va-exp-installment-amount').value);
     const countVal = parseInt(document.getElementById('va-exp-installment-count').value);
     installmentAmount = isNaN(rataVal) ? null : rataVal;
     installmentCount = isNaN(countVal) ? null : countVal;
+    installmentService = document.getElementById('va-exp-installment-service').value || null;
   }
   if (id) {
-    Object.assign(vState.expenses.find(x => x.id === id), { amount, date, note, category, excluded, paymentMethod, installments, installmentAmount, installmentCount });
+    Object.assign(vState.expenses.find(x => x.id === id), { amount, date, note, category, excluded, paymentMethod, pagId, installments, installmentAmount, installmentCount, installmentService });
   } else {
-    vState.expenses.push({ id: uid(), amount, date, note, category, excluded, paymentMethod, installments, installmentAmount, installmentCount });
+    vState.expenses.push({ id: uid(), amount, date, note, category, excluded, paymentMethod, pagId, installments, installmentAmount, installmentCount, installmentService });
   }
   closeVaModal('va-expense-modal-overlay');
   showToast('Spesa salvata');
@@ -4138,7 +4252,7 @@ function vaOpenInsuranceModal(id) {
     document.getElementById('va-ins-form-pagamento').value = ins.paymentDate || '';
     document.getElementById('va-ins-form-premio').value = ins.premio ?? '';
     document.getElementById('va-ins-form-note').value = ins.note || '';
-    document.getElementById('va-ins-form-excluded').checked = !!ins.excluded;
+    document.getElementById('va-ins-form-excluded').checked = !!ins.excluded; pagSet('va-ins-form', ins);
     document.getElementById('va-ins-delete-btn').style.display = 'block';
   } else {
     document.getElementById('va-ins-modal-title').textContent = 'Nuova assicurazione';
@@ -4148,17 +4262,18 @@ function vaOpenInsuranceModal(id) {
     document.getElementById('va-ins-form-pagamento').value = todayISO();
     document.getElementById('va-ins-form-premio').value = '';
     document.getElementById('va-ins-form-note').value = '';
-    document.getElementById('va-ins-form-excluded').checked = false;
+    document.getElementById('va-ins-form-excluded').checked = false; pagSet('va-ins-form', null);
     document.getElementById('va-ins-delete-btn').style.display = 'none';
   }
   document.getElementById('va-insurance-modal-overlay').classList.add('show');
 }
-function vaSyncLinkedExpense(entry, { date, amount, note, category, excluded }) {
+function vaSyncLinkedExpense(entry, { date, amount, note, category, excluded, pagId = null, paymentMethod = null }) {
   category = category || 'altro'; excluded = !!excluded;
+  Object.assign(entry, { pagId, paymentMethod }); // per riaprire la scheda col metodo scelto
   if (amount && amount > 0) {
     const existing = entry.expenseId && vState.expenses.find(x => x.id === entry.expenseId);
-    if (existing) Object.assign(existing, { amount, date: date || todayISO(), note, category, excluded });
-    else { const newId = uid(); vState.expenses.push({ id: newId, category, amount, date: date || todayISO(), note, excluded }); entry.expenseId = newId; }
+    if (existing) Object.assign(existing, { amount, date: date || todayISO(), note, category, excluded, pagId, paymentMethod });
+    else { const newId = uid(); vState.expenses.push({ id: newId, category, amount, date: date || todayISO(), note, excluded, pagId, paymentMethod }); entry.expenseId = newId; }
   } else if (entry.expenseId) {
     vState.expenses = vState.expenses.filter(x => x.id !== entry.expenseId);
     entry.expenseId = null;
@@ -4177,13 +4292,14 @@ async function vaSaveInsurance() {
   const premioVal = parseFloat(document.getElementById('va-ins-form-premio').value);
   const note = document.getElementById('va-ins-form-note').value.trim();
   const excluded = document.getElementById('va-ins-form-excluded').checked;
+  const pag = pagGet('va-ins-form');
   if (!compagnia) { showToast('Inserisci la compagnia assicurativa'); return; }
   if (!scadenza) { showToast('Inserisci la data di scadenza'); return; }
   const data = { compagnia, scadenza, paymentDate, premio: isNaN(premioVal) ? null : premioVal, note };
   let entry;
   if (id) { entry = vState.insurances.find(x => x.id === id); Object.assign(entry, data); }
   else { entry = { id: uid(), ...data }; vState.insurances.push(entry); }
-  vaSyncLinkedExpense(entry, { date: paymentDate, amount: entry.premio, note: `Assicurazione ${compagnia}`, category: 'assicurazione', excluded });
+  vaSyncLinkedExpense(entry, { date: paymentDate, amount: entry.premio, note: `Assicurazione ${compagnia}`, category: 'assicurazione', excluded, ...pag });
   closeVaModal('va-insurance-modal-overlay');
   showToast('Assicurazione salvata');
   vaRenderInsuranceSection();
@@ -4226,7 +4342,7 @@ function vaOpenBolloModal(id) {
     document.getElementById('va-bollo-form-pagamento').value = b.paymentDate || '';
     document.getElementById('va-bollo-form-importo').value = b.importo ?? '';
     document.getElementById('va-bollo-form-note').value = b.note || '';
-    document.getElementById('va-bollo-form-excluded').checked = !!b.excluded;
+    document.getElementById('va-bollo-form-excluded').checked = !!b.excluded; pagSet('va-bollo-form', b);
     document.getElementById('va-bollo-delete-btn').style.display = 'block';
   } else {
     document.getElementById('va-bollo-modal-title').textContent = 'Nuovo bollo';
@@ -4235,7 +4351,7 @@ function vaOpenBolloModal(id) {
     document.getElementById('va-bollo-form-pagamento').value = todayISO();
     document.getElementById('va-bollo-form-importo').value = '';
     document.getElementById('va-bollo-form-note').value = '';
-    document.getElementById('va-bollo-form-excluded').checked = false;
+    document.getElementById('va-bollo-form-excluded').checked = false; pagSet('va-bollo-form', null);
     document.getElementById('va-bollo-delete-btn').style.display = 'none';
   }
   document.getElementById('va-bollo-modal-overlay').classList.add('show');
@@ -4247,12 +4363,13 @@ async function vaSaveBollo() {
   const importoVal = parseFloat(document.getElementById('va-bollo-form-importo').value);
   const note = document.getElementById('va-bollo-form-note').value.trim();
   const excluded = document.getElementById('va-bollo-form-excluded').checked;
+  const pag = pagGet('va-bollo-form');
   if (!scadenza) { showToast('Inserisci la data di scadenza'); return; }
   const data = { scadenza, paymentDate, importo: isNaN(importoVal) ? null : importoVal, note };
   let entry;
   if (id) { entry = vState.bollo.find(x => x.id === id); Object.assign(entry, data); }
   else { entry = { id: uid(), ...data }; vState.bollo.push(entry); }
-  vaSyncLinkedExpense(entry, { date: paymentDate, amount: entry.importo, note: 'Bollo', category: 'bollo', excluded });
+  vaSyncLinkedExpense(entry, { date: paymentDate, amount: entry.importo, note: 'Bollo', category: 'bollo', excluded, ...pag });
   closeVaModal('va-bollo-modal-overlay');
   showToast('Bollo salvato');
   vaRenderBolloSection();
@@ -4297,7 +4414,7 @@ function vaOpenRevisioneModal(id) {
     document.getElementById('va-rev-form-pagamento').value = r.paymentDate || '';
     document.getElementById('va-rev-form-importo').value = r.importo ?? '';
     document.getElementById('va-rev-form-note').value = r.note || '';
-    document.getElementById('va-rev-form-excluded').checked = !!r.excluded;
+    document.getElementById('va-rev-form-excluded').checked = !!r.excluded; pagSet('va-rev-form', r);
     document.getElementById('va-rev-delete-btn').style.display = 'block';
   } else {
     document.getElementById('va-rev-modal-title').textContent = 'Nuova revisione';
@@ -4307,7 +4424,7 @@ function vaOpenRevisioneModal(id) {
     document.getElementById('va-rev-form-pagamento').value = todayISO();
     document.getElementById('va-rev-form-importo').value = '';
     document.getElementById('va-rev-form-note').value = '';
-    document.getElementById('va-rev-form-excluded').checked = false;
+    document.getElementById('va-rev-form-excluded').checked = false; pagSet('va-rev-form', null);
     document.getElementById('va-rev-delete-btn').style.display = 'none';
   }
   document.getElementById('va-revisione-modal-overlay').classList.add('show');
@@ -4320,12 +4437,13 @@ async function vaSaveRevisione() {
   const importoVal = parseFloat(document.getElementById('va-rev-form-importo').value);
   const note = document.getElementById('va-rev-form-note').value.trim();
   const excluded = document.getElementById('va-rev-form-excluded').checked;
+  const pag = pagGet('va-rev-form');
   if (!scadenza) { showToast('Inserisci la data di scadenza'); return; }
   const data = { compagnia, scadenza, paymentDate, importo: isNaN(importoVal) ? null : importoVal, note };
   let entry;
   if (id) { entry = vState.revisioni.find(x => x.id === id); Object.assign(entry, data); }
   else { entry = { id: uid(), ...data }; vState.revisioni.push(entry); }
-  vaSyncLinkedExpense(entry, { date: paymentDate, amount: entry.importo, note: `Revisione${compagnia ? ' · ' + compagnia : ''}`, category: 'revisione', excluded });
+  vaSyncLinkedExpense(entry, { date: paymentDate, amount: entry.importo, note: `Revisione${compagnia ? ' · ' + compagnia : ''}`, category: 'revisione', excluded, ...pag });
   closeVaModal('va-revisione-modal-overlay');
   showToast('Revisione salvata');
   vaRenderRevisioneSection();
@@ -4444,7 +4562,7 @@ function vaOpenPartModal(key, label, histId) {
     document.getElementById('va-part-form-km').value = h.km ?? '';
     document.getElementById('va-part-form-price').value = h.price ?? '';
     document.getElementById('va-part-form-note').value = h.note || '';
-    document.getElementById('va-part-form-excluded').checked = !!h.excluded;
+    document.getElementById('va-part-form-excluded').checked = !!h.excluded; pagSet('va-part-form', h);
     document.getElementById('va-part-delete-btn').style.display = 'block';
   } else {
     document.getElementById('va-part-hist-id').value = '';
@@ -4453,7 +4571,7 @@ function vaOpenPartModal(key, label, histId) {
     document.getElementById('va-part-form-km').value = vState.settings.kmTotali || '';
     document.getElementById('va-part-form-price').value = '';
     document.getElementById('va-part-form-note').value = '';
-    document.getElementById('va-part-form-excluded').checked = false;
+    document.getElementById('va-part-form-excluded').checked = false; pagSet('va-part-form', null);
     document.getElementById('va-part-delete-btn').style.display = 'none';
   }
   document.getElementById('va-part-modal-overlay').classList.add('show');
@@ -4467,6 +4585,7 @@ async function vaSavePartChange() {
   const priceVal = parseFloat(document.getElementById('va-part-form-price').value);
   const note = document.getElementById('va-part-form-note').value.trim();
   const excluded = document.getElementById('va-part-form-excluded').checked;
+  const pag = pagGet('va-part-form');
   if (!vState.parts[key]) vState.parts[key] = { history: [] };
   const data = { date, purchaseDate, km: isNaN(kmVal) ? null : kmVal, price: isNaN(priceVal) ? null : priceVal, note, excluded };
   let entry;
@@ -4474,7 +4593,7 @@ async function vaSavePartChange() {
   else { entry = { id: uid(), ...data }; vState.parts[key].history.push(entry); }
   const allParts = [...VEHICLE_STANDARD_PARTS[currentVehicle.type].ordinaria, ...VEHICLE_STANDARD_PARTS[currentVehicle.type].straordinaria, ...(currentVehicle.type === 'auto' ? TAGLIANDO_SUBPARTS : [])];
   const label = allParts.find(p => p.key === key)?.label || key;
-  vaSyncLinkedExpense(entry, { date, amount: entry.price, note: label, category: 'manutenzione', excluded });
+  vaSyncLinkedExpense(entry, { date, amount: entry.price, note: label, category: 'manutenzione', excluded, ...pag });
   closeVaModal('va-part-modal-overlay');
   showToast('Cambio registrato');
   vaRenderStandardParts();
@@ -4507,7 +4626,7 @@ function vaOpenTagliandoModal(histId) {
     document.getElementById('va-tagliando-form-price').value = h.price ?? '';
     document.getElementById('va-tagliando-form-location').value = h.location || '';
     document.getElementById('va-tagliando-form-note').value = h.note || '';
-    document.getElementById('va-tagliando-form-excluded').checked = !!h.excluded;
+    document.getElementById('va-tagliando-form-excluded').checked = !!h.excluded; pagSet('va-tagliando-form', h);
     document.getElementById('va-tagliando-delete-btn').style.display = 'block';
   } else {
     document.getElementById('va-tagliando-modal-title').textContent = 'Registra tagliando';
@@ -4516,7 +4635,7 @@ function vaOpenTagliandoModal(histId) {
     document.getElementById('va-tagliando-form-price').value = '';
     document.getElementById('va-tagliando-form-location').value = '';
     document.getElementById('va-tagliando-form-note').value = '';
-    document.getElementById('va-tagliando-form-excluded').checked = false;
+    document.getElementById('va-tagliando-form-excluded').checked = false; pagSet('va-tagliando-form', null);
     document.getElementById('va-tagliando-delete-btn').style.display = 'none';
   }
   document.getElementById('va-tagliando-modal-overlay').classList.add('show');
@@ -4530,12 +4649,13 @@ async function vaSaveTagliando() {
   const location = document.getElementById('va-tagliando-form-location').value.trim();
   const note = document.getElementById('va-tagliando-form-note').value.trim();
   const excluded = document.getElementById('va-tagliando-form-excluded').checked;
+  const pag = pagGet('va-tagliando-form');
   if (!vState.parts.tagliando) vState.parts.tagliando = { history: [] };
   const data = { date, km, price: isNaN(priceVal) ? null : priceVal, location, note, excluded };
   let entry;
   if (histId) { entry = vState.parts.tagliando.history.find(x => x.id === histId); Object.assign(entry, data); }
   else { entry = { id: uid(), ...data }; vState.parts.tagliando.history.push(entry); }
-  vaSyncLinkedExpense(entry, { date, amount: entry.price, note: 'Tagliando' + (location ? ' · ' + location : ''), category: 'manutenzione', excluded });
+  vaSyncLinkedExpense(entry, { date, amount: entry.price, note: 'Tagliando' + (location ? ' · ' + location : ''), category: 'tagliando', excluded, ...pag });
 
   // Solo alla registrazione di un NUOVO tagliando (non alla modifica di uno esistente):
   // propaga data e km a olio motore e a tutti i filtri, come richiesto.
@@ -4589,7 +4709,7 @@ function vaOpenManutenzioneModal(id) {
     document.getElementById('va-man-form-km').value = m.km ?? '';
     document.getElementById('va-man-form-price').value = m.price ?? '';
     document.getElementById('va-man-form-note').value = m.note || '';
-    document.getElementById('va-man-form-excluded').checked = !!m.excluded;
+    document.getElementById('va-man-form-excluded').checked = !!m.excluded; pagSet('va-man-form', m);
     document.getElementById('va-man-delete-btn').style.display = 'block';
   } else {
     document.getElementById('va-man-modal-title').textContent = 'Nuova voce manutenzione';
@@ -4599,7 +4719,7 @@ function vaOpenManutenzioneModal(id) {
     document.getElementById('va-man-form-km').value = vState.settings.kmTotali || '';
     document.getElementById('va-man-form-price').value = '';
     document.getElementById('va-man-form-note').value = '';
-    document.getElementById('va-man-form-excluded').checked = false;
+    document.getElementById('va-man-form-excluded').checked = false; pagSet('va-man-form', null);
     document.getElementById('va-man-delete-btn').style.display = 'none';
   }
   document.getElementById('va-manutenzione-modal-overlay').classList.add('show');
@@ -4612,12 +4732,13 @@ async function vaSaveManutenzione() {
   const priceVal = parseFloat(document.getElementById('va-man-form-price').value);
   const note = document.getElementById('va-man-form-note').value.trim();
   const excluded = document.getElementById('va-man-form-excluded').checked;
+  const pag = pagGet('va-man-form');
   if (!name) { showToast('Descrivi la voce di manutenzione'); return; }
   const data = { name, date, km: isNaN(kmVal) ? null : kmVal, price: isNaN(priceVal) ? null : priceVal, note };
   let entry;
   if (id) { entry = vState.manutenzione.find(x => x.id === id); Object.assign(entry, data); }
   else { entry = { id: uid(), ...data }; vState.manutenzione.push(entry); }
-  vaSyncLinkedExpense(entry, { date, amount: entry.price, note: name, category: 'manutenzione', excluded });
+  vaSyncLinkedExpense(entry, { date, amount: entry.price, note: name, category: 'manutenzione', excluded, ...pag });
   closeVaModal('va-manutenzione-modal-overlay');
   showToast('Voce salvata');
   vaRenderManutenzioneList();
@@ -4723,7 +4844,7 @@ function vaOpenRefuelModal(id) {
     document.getElementById('va-ref-total').value = r.euro;
     document.getElementById('va-ref-station').value = r.station || '';
     document.getElementById('va-ref-fueltype').value = r.fuelType || '';
-    document.getElementById('va-ref-excluded').checked = !!r.excluded;
+    document.getElementById('va-ref-excluded').checked = !!r.excluded; pagSet('va-ref', r);
     document.getElementById('va-ref-delete-btn').style.display = 'block';
   } else {
     document.getElementById('va-refuel-modal-title').textContent = 'Registra rifornimento';
@@ -4735,7 +4856,7 @@ function vaOpenRefuelModal(id) {
     document.getElementById('va-ref-total').value = '';
     document.getElementById('va-ref-station').value = '';
     document.getElementById('va-ref-fueltype').value = '';
-    document.getElementById('va-ref-excluded').checked = false;
+    document.getElementById('va-ref-excluded').checked = false; pagSet('va-ref', null);
     document.getElementById('va-ref-delete-btn').style.display = 'none';
   }
   document.getElementById('va-refuel-modal-overlay').classList.add('show');
@@ -4750,6 +4871,7 @@ async function vaSaveRefuel() {
   const station = document.getElementById('va-ref-station').value.trim();
   const fuelType = document.getElementById('va-ref-fueltype').value.trim();
   const excluded = document.getElementById('va-ref-excluded').checked;
+  const pag = pagGet('va-ref');
 
   if ((!euro || euro <= 0) && pricePerLitro > 0 && liters > 0) euro = pricePerLitro * liters;
   if ((!pricePerLitro || pricePerLitro <= 0) && euro > 0 && liters > 0) pricePerLitro = roundFuelPriceUp(euro / liters);
@@ -4761,14 +4883,14 @@ async function vaSaveRefuel() {
   if (id) {
     const old = vState.refuels.find(x => x.id === id);
     vState.settings.kmTotali = Math.max(0, (vState.settings.kmTotali || 0) - (old.km || 0));
-    Object.assign(old, { date, pricePerLitro, km: isNaN(km) ? null : km, euro, station, fuelType, excluded });
+    Object.assign(old, { date, pricePerLitro, km: isNaN(km) ? null : km, euro, station, fuelType, excluded, ...pag });
     const linkedExpense = vState.expenses.find(x => x.id === old.expenseId);
-    if (linkedExpense) Object.assign(linkedExpense, { amount: euro, date, note: station || 'Rifornimento', excluded });
+    if (linkedExpense) Object.assign(linkedExpense, { amount: euro, date, note: station || 'Rifornimento', excluded, ...pag });
     vState.settings.kmTotali = (vState.settings.kmTotali || 0) + (isNaN(km) ? 0 : km);
   } else {
     const expenseId = uid();
-    vState.expenses.push({ id: expenseId, category: 'carburante', amount: euro, date, note: station || 'Rifornimento', excluded });
-    vState.refuels.push({ id: uid(), date, pricePerLitro, km: isNaN(km) ? null : km, euro, station, fuelType, excluded, expenseId });
+    vState.expenses.push({ id: expenseId, category: 'carburante', amount: euro, date, note: station || 'Rifornimento', excluded, ...pag });
+    vState.refuels.push({ id: uid(), date, pricePerLitro, km: isNaN(km) ? null : km, euro, station, fuelType, excluded, expenseId, ...pag });
     vState.settings.kmTotali = (vState.settings.kmTotali || 0) + (isNaN(km) ? 0 : km);
   }
   closeVaModal('va-refuel-modal-overlay');
@@ -5063,7 +5185,7 @@ function vaRenderStatistiche() {
   const catIds = Object.keys(byCat);
   const catLabels = catIds.map(id => VEHICLE_CAT_MAP[id]?.label || id);
   const catValues = catIds.map(id => byCat[id]);
-  const catColors = catIds.map(id => VEHICLE_CAT_COLORS[VEHICLE_CATEGORIES.findIndex(c => c.id === id) % VEHICLE_CAT_COLORS.length]);
+  const catColors = catIds.map(id => VEHICLE_CAT_COLORS[Math.max(0, VEHICLE_CAT_ALL.findIndex(c => c.id === id)) % VEHICLE_CAT_COLORS.length]);
   const totalSpent = expenses.reduce((s, e) => s + e.amount, 0);
   document.getElementById('va-chart-category-period').textContent = vaStatsYear === 'all' ? 'Totale speso · sempre' : `Totale speso · ${vaStatsYear}`;
   document.getElementById('va-chart-category-total').textContent = fmtEUR(totalSpent);
@@ -5207,22 +5329,26 @@ function vaExportData() {
   showToast('Backup scaricato');
 }
 
-const CATEGORIES = [
-  { id: 'carburante',  label: 'Carburante',        icon: '⛽' },
-  { id: 'manutenzione',label: 'Manutenzione',       icon: '🔧' },
+// tutte le categorie del gommone, anche quelle che non si scelgono più (restano sulle spese già registrate)
+const CAT_ALL = [
+  { id: 'carburante',  label: 'Benzina',           icon: '⛽' },
+  { id: 'manutenzione',label: 'Manutenzione straordinaria', icon: '🔧' },
   { id: 'ormeggio',    label: 'Ormeggio',           icon: '⚓' },
   { id: 'rimessaggio', label: 'Rimessaggio',        icon: '🏠' },
   { id: 'assicurazione',label:'Assicurazione',      icon: '🛡️' },
   { id: 'dotazioni',   label: 'Dotazioni sicurezza',icon: '🧯' },
   { id: 'ricambi',     label: 'Ricambi',            icon: '🧰' },
-  { id: 'acquisto',    label: 'Acquisto',           icon: '🛒' },
+  { id: 'acquisto',    label: 'Acquisti',           icon: '🛒' },
   { id: 'revisione',   label: 'Revisione',          icon: '📋' },
   { id: 'bollo',       label: 'Bollo',              icon: '📄' },
   { id: 'documenti',   label: 'Documenti/Tasse',    icon: '🗂️' },
   { id: 'spese_carrello', label: 'Spese carrello',  icon: '🚛' },
-  { id: 'altro',       label: 'Altro',              icon: '⛵' },
+  { id: 'altro',       label: 'Spese varie',        icon: '⛵' },
+  { id: 'lavori',      label: 'Lavori',             icon: '🛠️' },
 ];
-const CAT_MAP = Object.fromEntries(CATEGORIES.map(c => [c.id, c]));
+// categorie da scegliere (le stesse dell'app Bilancio: Mezzi › Gommone)
+const CATEGORIES = ['acquisto', 'carburante', 'ormeggio', 'manutenzione', 'lavori', 'assicurazione', 'bollo'].map(id => CAT_ALL.find(c => c.id === id));
+const CAT_MAP = Object.fromEntries(CAT_ALL.map(c => [c.id, c]));
 
 const EQUIPMENT_TYPES = {
   segnali_pirotecnici: {
@@ -5530,6 +5656,7 @@ async function skipVehicleOnboarding() {
 
 /* ---------------- Storage helpers ---------------- */
 async function loadAll() {
+  pagCarica(); // metodi di pagamento di Bilancio, se collegata
   const keys = ['settings', 'expenses', 'trips', 'refuels', 'fuel', 'oil', 'oilRefuels', 'insurances', 'equipment', 'carrelloInsurances', 'carrelloRevisioni', 'carrelloBollo', 'carrelloLavori', 'rpmHoursLog', 'engineParts'];
   const results = await Promise.all(keys.map(key => storageGet(key).catch(() => null)));
   const [sR, eR, tR, rR, fR, oR, orR, insR, eqR, ciR, crR, cbR, clR, rhR, pR] = results;
@@ -6247,7 +6374,7 @@ function openRefuelModal(id) {
     document.getElementById('ref-total').value = r.euro;
     document.getElementById('ref-date').value = r.date;
     document.getElementById('ref-note').value = r.note || '';
-    document.getElementById('ref-excluded').checked = !!r.excluded;
+    document.getElementById('ref-excluded').checked = !!r.excluded; pagSet('ref', r);
     document.getElementById('ref-delete-btn').style.display = 'block';
   } else {
     document.getElementById('refuel-modal-title').textContent = 'Registra rifornimento';
@@ -6257,7 +6384,7 @@ function openRefuelModal(id) {
     document.getElementById('ref-total').value = '';
     document.getElementById('ref-date').value = todayISO();
     document.getElementById('ref-note').value = '';
-    document.getElementById('ref-excluded').checked = false;
+    document.getElementById('ref-excluded').checked = false; pagSet('ref', null);
     document.getElementById('ref-delete-btn').style.display = 'none';
   }
   overlay.classList.add('show');
@@ -6297,6 +6424,7 @@ async function saveRefuel() {
   const date = document.getElementById('ref-date').value;
   const note = document.getElementById('ref-note').value.trim();
   const excluded = document.getElementById('ref-excluded').checked;
+  const pag = pagGet('ref');
 
   // resolve any missing value defensively
   if ((!total || total <= 0) && liters > 0 && price > 0) total = liters * price;
@@ -6312,18 +6440,18 @@ async function saveRefuel() {
     // editing: first roll back old liters from fuel level, then apply new
     const old = state.refuels.find(x => x.id === id);
     state.fuel.levelLiters = clampFuelLevel(state.fuel.levelLiters - old.liters);
-    Object.assign(old, { liters, pricePerLitro: price, euro: total, date, note, excluded });
+    Object.assign(old, { liters, pricePerLitro: price, euro: total, date, note, excluded, ...pag });
     const linkedExpense = state.expenses.find(x => x.id === old.expenseId);
-    if (linkedExpense) Object.assign(linkedExpense, { amount: total, date, note: note || `Rifornimento ${liters.toFixed(1)} L`, excluded, fuelLiters: liters, fuelPricePerLitro: price });
+    if (linkedExpense) Object.assign(linkedExpense, { amount: total, date, note: note || `Rifornimento ${liters.toFixed(1)} L`, excluded, fuelLiters: liters, fuelPricePerLitro: price, ...pag });
     state.fuel.levelLiters = clampFuelLevel(state.fuel.levelLiters + liters);
   } else {
     const expenseId = uid();
     state.expenses.push({
       id: expenseId, category: 'carburante', amount: total, date,
       note: note || `Rifornimento ${liters.toFixed(1)} L`, excluded,
-      fuelLiters: liters, fuelPricePerLitro: price,
+      fuelLiters: liters, fuelPricePerLitro: price, ...pag,
     });
-    state.refuels.push({ id: uid(), date, liters, pricePerLitro: price, euro: total, note, excluded, expenseId });
+    state.refuels.push({ id: uid(), date, liters, pricePerLitro: price, euro: total, note, excluded, expenseId, ...pag });
     state.fuel.levelLiters = clampFuelLevel(state.fuel.levelLiters + liters);
   }
 
@@ -6364,7 +6492,7 @@ function openOilRefuelModal(id) {
     document.getElementById('oil-ref-total').value = r.euro;
     document.getElementById('oil-ref-date').value = r.date;
     document.getElementById('oil-ref-note').value = r.note || '';
-    document.getElementById('oil-ref-excluded').checked = !!r.excluded;
+    document.getElementById('oil-ref-excluded').checked = !!r.excluded; pagSet('oil-ref', r);
     document.getElementById('oil-ref-delete-btn').style.display = 'block';
   } else {
     document.getElementById('oil-refuel-modal-title').textContent = 'Registra rifornimento olio';
@@ -6374,7 +6502,7 @@ function openOilRefuelModal(id) {
     document.getElementById('oil-ref-total').value = '';
     document.getElementById('oil-ref-date').value = todayISO();
     document.getElementById('oil-ref-note').value = '';
-    document.getElementById('oil-ref-excluded').checked = false;
+    document.getElementById('oil-ref-excluded').checked = false; pagSet('oil-ref', null);
     document.getElementById('oil-ref-delete-btn').style.display = 'none';
   }
   overlay.classList.add('show');
@@ -6414,6 +6542,7 @@ async function saveOilRefuel() {
   const date = document.getElementById('oil-ref-date').value;
   const note = document.getElementById('oil-ref-note').value.trim();
   const excluded = document.getElementById('oil-ref-excluded').checked;
+  const pag = pagGet('oil-ref');
 
   if ((!total || total <= 0) && liters > 0 && price > 0) total = liters * price;
   if ((!price || price <= 0) && liters > 0 && total > 0) price = total / liters;
@@ -6427,17 +6556,17 @@ async function saveOilRefuel() {
   if (id) {
     const old = state.oilRefuels.find(x => x.id === id);
     state.oil.levelLiters = clampOilLevel(state.oil.levelLiters - old.liters);
-    Object.assign(old, { liters, pricePerLitro: price, euro: total, date, note, excluded });
+    Object.assign(old, { liters, pricePerLitro: price, euro: total, date, note, excluded, ...pag });
     const linkedExpense = state.expenses.find(x => x.id === old.expenseId);
-    if (linkedExpense) Object.assign(linkedExpense, { amount: total, date, note: note || `Olio miscela ${liters.toFixed(1)} L`, excluded });
+    if (linkedExpense) Object.assign(linkedExpense, { amount: total, date, note: note || `Olio miscela ${liters.toFixed(1)} L`, excluded, ...pag });
     state.oil.levelLiters = clampOilLevel(state.oil.levelLiters + liters);
   } else {
     const expenseId = uid();
     state.expenses.push({
       id: expenseId, category: 'manutenzione', amount: total, date,
-      note: note || `Olio miscela ${liters.toFixed(1)} L`, excluded,
+      note: note || `Olio miscela ${liters.toFixed(1)} L`, excluded, ...pag,
     });
-    state.oilRefuels.push({ id: uid(), date, liters, pricePerLitro: price, euro: total, note, excluded, expenseId });
+    state.oilRefuels.push({ id: uid(), date, liters, pricePerLitro: price, euro: total, note, excluded, expenseId, ...pag });
     state.oil.levelLiters = clampOilLevel(state.oil.levelLiters + liters);
   }
 
@@ -6837,7 +6966,7 @@ function openInsuranceModal(id) {
     document.getElementById('ins-form-premio').value = ins.premio ?? '';
     document.getElementById('ins-form-cv').value = ins.cvFiscali ?? '';
     document.getElementById('ins-form-note').value = ins.note || '';
-    document.getElementById('ins-form-excluded').checked = !!ins.excluded;
+    document.getElementById('ins-form-excluded').checked = !!ins.excluded; pagSet('ins-form', ins);
     document.getElementById('ins-delete-btn').style.display = 'block';
   } else {
     document.getElementById('insurance-modal-title').textContent = 'Nuova assicurazione';
@@ -6848,7 +6977,7 @@ function openInsuranceModal(id) {
     document.getElementById('ins-form-premio').value = '';
     document.getElementById('ins-form-cv').value = 26;
     document.getElementById('ins-form-note').value = '';
-    document.getElementById('ins-form-excluded').checked = false;
+    document.getElementById('ins-form-excluded').checked = false; pagSet('ins-form', null);
     document.getElementById('ins-delete-btn').style.display = 'none';
   }
   document.getElementById('insurance-modal-overlay').classList.add('show');
@@ -6865,6 +6994,7 @@ async function saveInsurance() {
   const cvVal = parseFloat(document.getElementById('ins-form-cv').value);
   const note = document.getElementById('ins-form-note').value.trim();
   const excluded = document.getElementById('ins-form-excluded').checked;
+  const pag = pagGet('ins-form');
 
   if (!compagnia) { showToast('Inserisci la compagnia assicurativa'); return; }
   if (!scadenza) { showToast('Inserisci la data di scadenza'); return; }
@@ -6885,7 +7015,7 @@ async function saveInsurance() {
     state.insurances.push(entry);
   }
 
-  syncPartExpense(entry, { date: paymentDate, amount: entry.premio, note: `Assicurazione ${compagnia}`, category: 'assicurazione', excluded });
+  syncPartExpense(entry, { date: paymentDate, amount: entry.premio, note: `Assicurazione ${compagnia}`, category: 'assicurazione', excluded, ...pag });
   closeInsuranceModal();
   showToast('Assicurazione salvata');
   renderInsuranceSection();
@@ -6964,7 +7094,7 @@ function openEquipmentModal(id) {
     document.getElementById('eq-validity').value = eq.validityMonths ?? EQUIPMENT_TYPES[eq.type]?.validityMonths ?? '';
     document.getElementById('eq-type-note').textContent = EQUIPMENT_TYPES[eq.type]?.note || '';
     document.getElementById('eq-note').value = eq.note || '';
-    document.getElementById('eq-excluded').checked = !!eq.excluded;
+    document.getElementById('eq-excluded').checked = !!eq.excluded; pagSet('eq', eq);
     document.getElementById('eq-delete-btn').style.display = 'block';
   } else {
     document.getElementById('equipment-modal-title').textContent = 'Nuova dotazione';
@@ -6975,7 +7105,7 @@ function openEquipmentModal(id) {
     document.getElementById('eq-price').value = '';
     onEquipmentTypeChange();
     document.getElementById('eq-note').value = '';
-    document.getElementById('eq-excluded').checked = false;
+    document.getElementById('eq-excluded').checked = false; pagSet('eq', null);
     document.getElementById('eq-delete-btn').style.display = 'none';
   }
   document.getElementById('equipment-modal-overlay').classList.add('show');
@@ -6992,6 +7122,7 @@ async function saveEquipmentItem() {
   const validityVal = parseFloat(document.getElementById('eq-validity').value);
   const note = document.getElementById('eq-note').value.trim();
   const excluded = document.getElementById('eq-excluded').checked;
+  const pag = pagGet('eq');
 
   if (!purchaseDate) { showToast('Inserisci la data di acquisto'); return; }
 
@@ -7012,7 +7143,7 @@ async function saveEquipmentItem() {
   }
 
   const typeLabel = EQUIPMENT_TYPES[type].label;
-  syncPartExpense(entry, { date: purchaseDate, amount: entry.price, note: typeLabel, category: 'dotazioni', excluded });
+  syncPartExpense(entry, { date: purchaseDate, amount: entry.price, note: typeLabel, category: 'dotazioni', excluded, ...pag });
   closeEquipmentModal();
   showToast('Dotazione salvata');
   renderEquipmentList();
@@ -7109,7 +7240,7 @@ function openCarrelloInsModal(id) {
     document.getElementById('crl-ins-form-pagamento').value = ins.paymentDate || '';
     document.getElementById('crl-ins-form-premio').value = ins.premio ?? '';
     document.getElementById('crl-ins-form-note').value = ins.note || '';
-    document.getElementById('crl-ins-form-excluded').checked = !!ins.excluded;
+    document.getElementById('crl-ins-form-excluded').checked = !!ins.excluded; pagSet('crl-ins-form', ins);
     document.getElementById('crl-ins-delete-btn').style.display = 'block';
   } else {
     document.getElementById('crl-ins-modal-title').textContent = 'Nuova assicurazione carrello';
@@ -7119,7 +7250,7 @@ function openCarrelloInsModal(id) {
     document.getElementById('crl-ins-form-pagamento').value = todayISO();
     document.getElementById('crl-ins-form-premio').value = '';
     document.getElementById('crl-ins-form-note').value = '';
-    document.getElementById('crl-ins-form-excluded').checked = false;
+    document.getElementById('crl-ins-form-excluded').checked = false; pagSet('crl-ins-form', null);
     document.getElementById('crl-ins-delete-btn').style.display = 'none';
   }
   document.getElementById('carrello-ins-modal-overlay').classList.add('show');
@@ -7135,6 +7266,7 @@ async function saveCarrelloIns() {
   const premioVal = parseFloat(document.getElementById('crl-ins-form-premio').value);
   const note = document.getElementById('crl-ins-form-note').value.trim();
   const excluded = document.getElementById('crl-ins-form-excluded').checked;
+  const pag = pagGet('crl-ins-form');
   if (!compagnia) { showToast('Inserisci la compagnia assicurativa'); return; }
   if (!scadenza) { showToast('Inserisci la data di scadenza'); return; }
 
@@ -7147,7 +7279,7 @@ async function saveCarrelloIns() {
     entry = { id: uid(), ...data };
     state.carrelloInsurances.push(entry);
   }
-  syncPartExpense(entry, { date: paymentDate, amount: entry.premio, note: `Assicurazione carrello ${compagnia}`, category: 'assicurazione', excluded });
+  syncPartExpense(entry, { date: paymentDate, amount: entry.premio, note: `Assicurazione carrello ${compagnia}`, category: 'assicurazione', excluded, ...pag });
   closeCarrelloInsModal();
   showToast('Assicurazione salvata');
   renderCarrelloInsSection();
@@ -7219,7 +7351,7 @@ function openCarrelloRevModal(id) {
     document.getElementById('crl-rev-form-pagamento').value = rev.paymentDate || '';
     document.getElementById('crl-rev-form-bollo').value = rev.bollo ?? '';
     document.getElementById('crl-rev-form-note').value = rev.note || '';
-    document.getElementById('crl-rev-form-excluded').checked = !!rev.excluded;
+    document.getElementById('crl-rev-form-excluded').checked = !!rev.excluded; pagSet('crl-rev-form', rev);
     document.getElementById('crl-rev-delete-btn').style.display = 'block';
   } else {
     document.getElementById('crl-rev-modal-title').textContent = 'Nuova revisione carrello';
@@ -7229,7 +7361,7 @@ function openCarrelloRevModal(id) {
     document.getElementById('crl-rev-form-pagamento').value = todayISO();
     document.getElementById('crl-rev-form-bollo').value = '';
     document.getElementById('crl-rev-form-note').value = '';
-    document.getElementById('crl-rev-form-excluded').checked = false;
+    document.getElementById('crl-rev-form-excluded').checked = false; pagSet('crl-rev-form', null);
     document.getElementById('crl-rev-delete-btn').style.display = 'none';
   }
   document.getElementById('carrello-rev-modal-overlay').classList.add('show');
@@ -7245,6 +7377,7 @@ async function saveCarrelloRev() {
   const bolloVal = parseFloat(document.getElementById('crl-rev-form-bollo').value);
   const note = document.getElementById('crl-rev-form-note').value.trim();
   const excluded = document.getElementById('crl-rev-form-excluded').checked;
+  const pag = pagGet('crl-rev-form');
   if (!scadenza) { showToast('Inserisci la data di scadenza'); return; }
 
   const data = { compagnia, scadenza, paymentDate, bollo: isNaN(bolloVal) ? null : bolloVal, note };
@@ -7256,7 +7389,7 @@ async function saveCarrelloRev() {
     entry = { id: uid(), ...data };
     state.carrelloRevisioni.push(entry);
   }
-  syncPartExpense(entry, { date: paymentDate, amount: entry.bollo, note: `Revisione carrello${compagnia ? ' · ' + compagnia : ''}`, category: 'revisione', excluded });
+  syncPartExpense(entry, { date: paymentDate, amount: entry.bollo, note: `Revisione carrello${compagnia ? ' · ' + compagnia : ''}`, category: 'revisione', excluded, ...pag });
   closeCarrelloRevModal();
   showToast('Revisione salvata');
   renderCarrelloRevSection();
@@ -7326,7 +7459,7 @@ function openCarrelloBolloModal(id) {
     document.getElementById('crl-bollo-form-pagamento').value = b.paymentDate || '';
     document.getElementById('crl-bollo-form-importo').value = b.importo ?? '';
     document.getElementById('crl-bollo-form-note').value = b.note || '';
-    document.getElementById('crl-bollo-form-excluded').checked = !!b.excluded;
+    document.getElementById('crl-bollo-form-excluded').checked = !!b.excluded; pagSet('crl-bollo-form', b);
     document.getElementById('crl-bollo-delete-btn').style.display = 'block';
   } else {
     document.getElementById('crl-bollo-modal-title').textContent = 'Nuovo bollo carrello';
@@ -7335,7 +7468,7 @@ function openCarrelloBolloModal(id) {
     document.getElementById('crl-bollo-form-pagamento').value = todayISO();
     document.getElementById('crl-bollo-form-importo').value = '';
     document.getElementById('crl-bollo-form-note').value = '';
-    document.getElementById('crl-bollo-form-excluded').checked = false;
+    document.getElementById('crl-bollo-form-excluded').checked = false; pagSet('crl-bollo-form', null);
     document.getElementById('crl-bollo-delete-btn').style.display = 'none';
   }
   document.getElementById('carrello-bollo-modal-overlay').classList.add('show');
@@ -7350,6 +7483,7 @@ async function saveCarrelloBollo() {
   const importoVal = parseFloat(document.getElementById('crl-bollo-form-importo').value);
   const note = document.getElementById('crl-bollo-form-note').value.trim();
   const excluded = document.getElementById('crl-bollo-form-excluded').checked;
+  const pag = pagGet('crl-bollo-form');
   if (!scadenza) { showToast('Inserisci la data di scadenza'); return; }
 
   const data = { scadenza, paymentDate, importo: isNaN(importoVal) ? null : importoVal, note };
@@ -7361,7 +7495,7 @@ async function saveCarrelloBollo() {
     entry = { id: uid(), ...data };
     state.carrelloBollo.push(entry);
   }
-  syncPartExpense(entry, { date: paymentDate, amount: entry.importo, note: 'Bollo carrello', category: 'bollo', excluded });
+  syncPartExpense(entry, { date: paymentDate, amount: entry.importo, note: 'Bollo carrello', category: 'bollo', excluded, ...pag });
   closeCarrelloBolloModal();
   showToast('Bollo salvato');
   renderCarrelloBolloSection();
@@ -7437,7 +7571,7 @@ function openCarrelloLavoroModal(id) {
     document.getElementById('crl-lavoro-form-date').value = l.date || '';
     document.getElementById('crl-lavoro-form-price').value = l.price ?? '';
     document.getElementById('crl-lavoro-form-note').value = l.note || '';
-    document.getElementById('crl-lavoro-form-excluded').checked = !!l.excluded;
+    document.getElementById('crl-lavoro-form-excluded').checked = !!l.excluded; pagSet('crl-lavoro-form', l);
     document.getElementById('crl-lavoro-delete-btn').style.display = 'block';
   } else {
     document.getElementById('crl-lavoro-modal-title').textContent = 'Nuovo lavoro';
@@ -7446,7 +7580,7 @@ function openCarrelloLavoroModal(id) {
     document.getElementById('crl-lavoro-form-date').value = todayISO();
     document.getElementById('crl-lavoro-form-price').value = '';
     document.getElementById('crl-lavoro-form-note').value = '';
-    document.getElementById('crl-lavoro-form-excluded').checked = false;
+    document.getElementById('crl-lavoro-form-excluded').checked = false; pagSet('crl-lavoro-form', null);
     document.getElementById('crl-lavoro-delete-btn').style.display = 'none';
   }
   document.getElementById('carrello-lavoro-modal-overlay').classList.add('show');
@@ -7461,6 +7595,7 @@ async function saveCarrelloLavoro() {
   const priceVal = parseFloat(document.getElementById('crl-lavoro-form-price').value);
   const note = document.getElementById('crl-lavoro-form-note').value.trim();
   const excluded = document.getElementById('crl-lavoro-form-excluded').checked;
+  const pag = pagGet('crl-lavoro-form');
   if (!name) { showToast('Descrivi il lavoro eseguito'); return; }
 
   const data = { name, date, price: isNaN(priceVal) ? null : priceVal, note };
@@ -7472,7 +7607,7 @@ async function saveCarrelloLavoro() {
     entry = { id: uid(), ...data };
     state.carrelloLavori.push(entry);
   }
-  syncPartExpense(entry, { date, amount: entry.price, note: `Carrello: ${name}`, category: 'spese_carrello', excluded });
+  syncPartExpense(entry, { date, amount: entry.price, note: `Carrello: ${name}`, category: 'spese_carrello', excluded, ...pag });
   closeCarrelloLavoroModal();
   showToast('Lavoro registrato');
   renderCarrelloLavoriList();
@@ -7557,15 +7692,16 @@ function estimatedEngineHours() {
 }
 
 /* ---- Collegamento automatico ricambi -> Spese (categoria Manutenzione) ---- */
-function syncPartExpense(entry, { date, amount, note, category, excluded }) {
+function syncPartExpense(entry, { date, amount, note, category, excluded, pagId = null, paymentMethod = null }) {
   category = category || 'manutenzione';
   excluded = !!excluded;
+  Object.assign(entry, { pagId, paymentMethod }); // per riaprire la scheda col metodo scelto
   if (amount && amount > 0) {
     if (entry.expenseId && state.expenses.find(x => x.id === entry.expenseId)) {
-      Object.assign(state.expenses.find(x => x.id === entry.expenseId), { amount, date: date || todayISO(), note, category, excluded });
+      Object.assign(state.expenses.find(x => x.id === entry.expenseId), { amount, date: date || todayISO(), note, category, excluded, pagId, paymentMethod });
     } else {
       const newId = uid();
-      state.expenses.push({ id: newId, category, amount, date: date || todayISO(), note, excluded });
+      state.expenses.push({ id: newId, category, amount, date: date || todayISO(), note, excluded, pagId, paymentMethod });
       entry.expenseId = newId;
     }
   } else if (entry.expenseId) {
@@ -7749,7 +7885,7 @@ function openHistoryModal(key, historyId) {
     document.getElementById('hist-unit-price').value = h.unitPrice ?? '';
     document.getElementById('hist-price').value = h.price ?? '';
     document.getElementById('hist-hours-hint').textContent = '';
-    document.getElementById('hist-excluded').checked = !!h.excluded;
+    document.getElementById('hist-excluded').checked = !!h.excluded; pagSet('hist', h);
     document.getElementById('hist-delete-btn').style.display = 'block';
   } else {
     document.getElementById('part-history-modal-title').textContent = 'Registra cambio: ' + label.toLowerCase();
@@ -7762,7 +7898,7 @@ function openHistoryModal(key, historyId) {
     document.getElementById('hist-hours-hint').textContent = suggestedHours
       ? `Suggerite dalle uscite registrate in app (${suggestedHours} h totali) — correggi se il motore ha più ore di quelle tracciate qui.`
       : '';
-    document.getElementById('hist-excluded').checked = false;
+    document.getElementById('hist-excluded').checked = false; pagSet('hist', null);
     document.getElementById('hist-delete-btn').style.display = 'none';
   }
   document.getElementById('part-history-modal-overlay').classList.add('show');
@@ -7842,7 +7978,8 @@ async function saveHistoryEntry() {
     ? `${partLabel} (${entry.quantity}${cfg.pricingMode === 'liter' ? ' L' : 'x'})`
     : partLabel;
   const excluded = document.getElementById('hist-excluded').checked;
-  syncPartExpense(entry, { date: entry.date, amount: entry.price, note: noteText, excluded });
+  const pag = pagGet('hist');
+  syncPartExpense(entry, { date: entry.date, amount: entry.price, note: noteText, excluded, ...pag });
 
   closeHistoryModal();
   showToast('Cambio registrato');
@@ -7921,7 +8058,7 @@ function openPartModal(id) {
     document.getElementById('part-torque').value = p.torqueNm ?? '';
     document.getElementById('part-price').value = p.price ?? '';
     document.getElementById('part-note').value = p.note || '';
-    document.getElementById('part-excluded').checked = !!p.excluded;
+    document.getElementById('part-excluded').checked = !!p.excluded; pagSet('part', p);
     document.getElementById('part-delete-btn').style.display = 'block';
   } else {
     document.getElementById('part-modal-title').textContent = 'Nuovo ricambio';
@@ -7933,7 +8070,7 @@ function openPartModal(id) {
     document.getElementById('part-torque').value = '';
     document.getElementById('part-price').value = '';
     document.getElementById('part-note').value = '';
-    document.getElementById('part-excluded').checked = false;
+    document.getElementById('part-excluded').checked = false; pagSet('part', null);
     document.getElementById('part-delete-btn').style.display = 'none';
   }
   document.getElementById('part-modal-overlay').classList.add('show');
@@ -7959,6 +8096,7 @@ async function savePart() {
   };
 
   const excluded = document.getElementById('part-excluded').checked;
+  const pag = pagGet('part');
 
   let entry;
   if (id) {
@@ -7968,7 +8106,7 @@ async function savePart() {
     entry = { id: uid(), ...data };
     state.engineParts.altro.push(entry);
   }
-  syncPartExpense(entry, { date: entry.lastChangeDate, amount: entry.price, note: entry.name, excluded });
+  syncPartExpense(entry, { date: entry.lastChangeDate, amount: entry.price, note: entry.name, excluded, ...pag });
   closePartModal();
   showToast('Ricambio salvato');
   renderAltroParts();
@@ -8075,13 +8213,13 @@ function openExpenseModal(id) {
     document.getElementById('exp-amount').value = e.amount;
     document.getElementById('exp-date').value = e.date;
     document.getElementById('exp-note').value = e.note || '';
-    document.getElementById('exp-excluded').checked = !!e.excluded;
+    document.getElementById('exp-excluded').checked = !!e.excluded; pagSet('exp', e);
     document.getElementById('exp-fuel-liters').value = e.fuelLiters ?? '';
     document.getElementById('exp-fuel-price').value = e.fuelPricePerLitro ?? '';
-    document.getElementById('exp-payment-method').value = e.paymentMethod || '';
     document.getElementById('exp-installments').checked = !!e.installments;
     document.getElementById('exp-installment-amount').value = e.installmentAmount ?? '';
     document.getElementById('exp-installment-count').value = e.installmentCount ?? '';
+    document.getElementById('exp-installment-service').value = e.installmentService || 'PayPal';
     onExpInstallmentsToggle('');
     selectCategory(e.category);
     document.getElementById('exp-delete-btn').style.display = 'block';
@@ -8091,13 +8229,13 @@ function openExpenseModal(id) {
     document.getElementById('exp-amount').value = '';
     document.getElementById('exp-date').value = todayISO();
     document.getElementById('exp-note').value = '';
-    document.getElementById('exp-excluded').checked = false;
+    document.getElementById('exp-excluded').checked = false; pagSet('exp', null);
     document.getElementById('exp-fuel-liters').value = '';
     document.getElementById('exp-fuel-price').value = '';
-    document.getElementById('exp-payment-method').value = '';
     document.getElementById('exp-installments').checked = false;
     document.getElementById('exp-installment-amount').value = '';
     document.getElementById('exp-installment-count').value = '';
+    document.getElementById('exp-installment-service').value = 'PayPal';
     onExpInstallmentsToggle('');
     selectCategory(state.activeFilter !== 'tutte' ? state.activeFilter : 'carburante');
     document.getElementById('exp-delete-btn').style.display = 'none';
@@ -8153,6 +8291,7 @@ async function saveExpense() {
   const date = document.getElementById('exp-date').value;
   const note = document.getElementById('exp-note').value.trim();
   const excluded = document.getElementById('exp-excluded').checked;
+  const pag = pagGet('exp');
   const catEl = document.querySelector('.cat-opt.selected');
 
   if (!amount || amount <= 0) { showToast('Inserisci un importo valido'); return; }
@@ -8167,21 +8306,22 @@ async function saveExpense() {
     fuelLiters = isNaN(litersVal) ? null : litersVal;
     fuelPricePerLitro = isNaN(priceVal) ? null : priceVal;
   }
-  const paymentMethod = document.getElementById('exp-payment-method').value || null;
+  const { pagId, paymentMethod } = pag;
   const installments = document.getElementById('exp-installments').checked;
-  let installmentAmount = null, installmentCount = null;
+  let installmentAmount = null, installmentCount = null, installmentService = null;
   if (installments) {
     const rataVal = parseFloat(document.getElementById('exp-installment-amount').value);
     const countVal = parseInt(document.getElementById('exp-installment-count').value);
     installmentAmount = isNaN(rataVal) ? null : rataVal;
     installmentCount = isNaN(countVal) ? null : countVal;
+    installmentService = document.getElementById('exp-installment-service').value || null;
   }
 
   if (id) {
     const e = state.expenses.find(x => x.id === id);
-    Object.assign(e, { amount, date, note, category, excluded, fuelLiters, fuelPricePerLitro, paymentMethod, installments, installmentAmount, installmentCount });
+    Object.assign(e, { amount, date, note, category, excluded, fuelLiters, fuelPricePerLitro, paymentMethod, pagId, installments, installmentAmount, installmentCount, installmentService });
   } else {
-    state.expenses.push({ id: uid(), amount, date, note, category, excluded, fuelLiters, fuelPricePerLitro, paymentMethod, installments, installmentAmount, installmentCount });
+    state.expenses.push({ id: uid(), amount, date, note, category, excluded, fuelLiters, fuelPricePerLitro, paymentMethod, pagId, installments, installmentAmount, installmentCount, installmentService });
   }
   closeExpenseModal();
   showToast('Spesa salvata');
@@ -8813,7 +8953,7 @@ function renderStatistiche() {
   const catIds = Object.keys(byCat);
   const catLabels = catIds.map(id => CAT_MAP[id]?.label || id);
   const catValues = catIds.map(id => byCat[id]);
-  const catColors = catIds.map(id => CAT_COLORS[CATEGORIES.findIndex(c => c.id === id) % CAT_COLORS.length]);
+  const catColors = catIds.map(id => CAT_COLORS[Math.max(0, CAT_ALL.findIndex(c => c.id === id)) % CAT_COLORS.length]);
 
   const totalSpent = expenses.reduce((s, e) => s + e.amount, 0);
   document.getElementById('chart-category-period').textContent =
